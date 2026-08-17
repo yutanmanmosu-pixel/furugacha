@@ -1,0 +1,18 @@
+# ============================================================
+# ふるガチャ 環境変数サンプル
+# 実際の値は絶対にGitへコミットしないでください。
+# Cloudflare Pages 本番では Dashboard > Settings > Environment variables に設定します。
+# ローカル開発(wrangler pages dev)では .dev.vars を使用します（.dev.vars.example参照）。
+# ============================================================
+
+# 楽天ウェブサービス（https://webservice.rakuten.co.jp/ で発行）
+# ※ Ichiba Item Search API v2026-07-01 以降は applicationId に加えて accessKey が必須です。
+RAKUTEN_APPLICATION_ID=
+RAKUTEN_ACCESS_KEY=
+
+# 楽天アフィリエイトID（https://affiliate.rakuten.co.jp/ で確認）
+# 未設定でもサイトは動作します（通常リンクにフォールバック）。
+RAKUTEN_AFFILIATE_ID=
+
+# "true" にすると資格情報があってもモックデータで動作します（開発・検証用）
+MOCK_MODE=true

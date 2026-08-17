@@ -1,0 +1,5 @@
+# Cloudflare Pages 設定
+# ローカル: npx wrangler pages dev public
+name = "furugacha"
+compatibility_date = "2026-08-01"
+pages_build_output_dir = "public"

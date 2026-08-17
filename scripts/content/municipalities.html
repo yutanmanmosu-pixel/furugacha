@@ -1,0 +1,16 @@
+<section class="section">
+  <div class="container">
+    <h1 class="section-title">掲載自治体一覧</h1>
+    <p class="section-lead">ふるガチャに掲載中の自治体です。名前を押すと、その自治体の紹介と返礼品ピックアップが見られます(ガチャの抽選には影響しません)。</p>
+    <p id="muni-subset-note" class="note" hidden>※現在は全国47都道府県の一部自治体を先行掲載しています。掲載自治体は順次追加していきます。</p>
+    <div class="muni-filter">
+      <label class="visually-hidden" for="muni-region">地方で絞り込み</label>
+      <select id="muni-region"><option value="">すべての地方</option></select>
+      <label class="visually-hidden" for="muni-search">自治体名で検索</label>
+      <input id="muni-search" type="search" placeholder="自治体名・都道府県名で検索">
+      <span id="muni-count" class="note"></span>
+    </div>
+    <div id="muni-list"></div>
+    <p style="margin-top:10px"><a class="btn btn--primary" href="/gacha/">🎰 選べない?ならガチャで決める</a></p>
+  </div>
+</section>

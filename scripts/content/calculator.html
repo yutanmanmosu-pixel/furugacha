@@ -1,0 +1,59 @@
+<section class="section">
+  <div class="container">
+    <div class="center">
+      <p class="section-kicker">無料・入力1分</p>
+      <h1 class="section-title">控除上限額<span class="deco">シミュレーター</span></h1>
+      <p class="section-lead">年収と家族構成を入れるだけで、ふるさと納税の控除上限額の<strong>目安</strong>がわかります。</p>
+    </div>
+
+    <form id="calc-form" class="card form-card" aria-label="控除上限額の入力">
+      <div class="field">
+        <label for="calc-salary">年収(給与収入・額面)</label>
+        <input id="calc-salary" type="text" inputmode="numeric" autocomplete="off" placeholder="例: 500"><span class="unit">万円</span>
+      </div>
+      <div class="field field--inline">
+        <div>
+          <label for="calc-spouse">配偶者控除の対象になる配偶者</label>
+          <select id="calc-spouse">
+            <option value="no" selected>いない(独身・共働きなど)</option>
+            <option value="yes">いる(年収103万円以下など)</option>
+          </select>
+        </div>
+        <div>
+          <label for="calc-dep">扶養親族(16〜18歳・23歳以上)</label>
+          <select id="calc-dep"><option>0</option><option>1</option><option>2</option><option>3</option><option>4</option></select>
+        </div>
+        <div>
+          <label for="calc-dep-spec">特定扶養親族(19〜22歳)</label>
+          <select id="calc-dep-spec"><option>0</option><option>1</option><option>2</option><option>3</option></select>
+        </div>
+      </div>
+      <details id="calc-detail" class="calc-detail">
+        <summary>くわしく入力する(任意)</summary>
+        <div class="field"><label for="calc-social">社会保険料の年額(実額)<span class="hint">未入力なら年収の15%で概算</span></label><input id="calc-social" type="text" inputmode="numeric" placeholder="例: 75"><span class="unit">万円</span></div>
+        <div class="field"><label for="calc-ideco">iDeCo等の掛金(年額)</label><input id="calc-ideco" type="text" inputmode="numeric" placeholder="例: 24"><span class="unit">万円</span></div>
+        <div class="field"><label for="calc-other">その他の所得控除(医療費控除・生命保険料控除など)</label><input id="calc-other" type="text" inputmode="numeric" placeholder="例: 10"><span class="unit">万円</span></div>
+      </details>
+      <p id="calc-error" class="error" hidden role="alert"></p>
+      <div class="scope-run"><button type="submit" class="btn btn--primary btn--xl">上限額の目安を計算する</button></div>
+    </form>
+
+    <section id="calc-result" class="calc-result form-card" hidden aria-label="試算結果">
+      <p class="calc-amount-label">あなたの控除上限額(目安)</p>
+      <p id="calc-amount" class="calc-amount">—</p>
+      <p id="calc-zero-note" class="note" hidden>この条件では、自己負担2,000円を上回る控除は見込めない可能性が高いです(住民税・所得税がほとんどかからないケースなど)。</p>
+      <p class="calc-note">※控除額は目安です。住宅ローン控除等がある場合は少なくなることがあります。正確な金額は税理士等の専門家、または国税庁・お住まいの自治体にご確認ください。</p>
+      <table class="calc-breakdown"><caption class="visually-hidden">計算の内訳</caption><tbody id="calc-breakdown"></tbody></table>
+      <details><summary style="cursor:pointer;font-weight:700">この試算の前提</summary><ul id="calc-assumptions" class="note"></ul></details>
+      <div class="calc-cta">
+        <h3>この予算、どう使う?</h3>
+        <div class="btns">
+          <a class="btn btn--green" href="/gacha/">🎰 自治体ガチャで寄附先を決める</a>
+          <div>
+            <a id="calc-cta-budget" class="btn btn--ghost" href="/budget-gacha/"><span id="calc-cta-budget-amount"></span>分をおまかせガチャで組む</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</section>

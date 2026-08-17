@@ -1,0 +1,37 @@
+<section class="section">
+  <div class="container">
+    <div class="center">
+      <p class="section-kicker">サブ機能</p>
+      <h1 class="section-title">予算おまかせ<span class="deco">ガチャ</span></h1>
+      <p class="section-lead">予算とカテゴリを決めるだけ。予算を<strong>絶対に超えない</strong>返礼品の組み合わせを、ガチャが提案します。</p>
+    </div>
+
+    <form id="budget-form" class="card form-card" aria-label="予算おまかせガチャの設定">
+      <div class="field">
+        <label for="budget-input">予算(円)<span class="hint">2,000円〜2,000,000円</span></label>
+        <input id="budget-input" name="budget" type="text" inputmode="numeric" autocomplete="off" placeholder="例: 50000">
+        <p id="budget-handoff-note" class="note" hidden></p>
+      </div>
+      <fieldset style="border:none;padding:0;margin:0">
+        <legend class="field" style="font-weight:800;margin-bottom:0">カテゴリを選ぶ</legend>
+        <div id="budget-categories"></div>
+      </fieldset>
+      <p id="budget-error" class="error" hidden role="alert"></p>
+      <div class="scope-run">
+        <button id="budget-run" type="submit" class="btn btn--primary btn--xl">🎰 おまかせガチャをまわす</button>
+      </div>
+      <p class="note center">まだ予算が決まっていない方は、<a href="/calculator/">控除上限シミュレーター</a>で目安をチェックできます。</p>
+    </form>
+
+    <section id="budget-result" class="section" hidden aria-label="ガチャ結果" style="padding-bottom:0">
+      <div class="products-head">
+        <h2 class="section-title" style="margin:0">今回の組み合わせ</h2>
+        <span id="budget-pr-badge" class="pr-badge" hidden>PR</span>
+      </div>
+      <p id="budget-summary" class="budget-summary"></p>
+      <p id="budget-note" class="note"></p>
+      <div id="budget-grid" class="products-grid" aria-live="polite"></div>
+      <p class="center" style="margin-top:22px"><button id="budget-again" type="button" class="btn btn--primary">🎰 同じ条件でもう一回</button></p>
+    </section>
+  </div>
+</section>

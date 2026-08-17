@@ -1,0 +1,15 @@
+{
+  "name": "furugacha",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ふるガチャ — ふるさと納税する自治体を、ガチャで決めるWebサービス",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "typecheck": "tsc -p tsconfig.json",
+    "build:pages": "python3 scripts/generate-pages.py",
+    "validate:data": "node scripts/validate-municipalities.mjs",
+    "dev": "npx wrangler pages dev public",
+    "og": "python3 scripts/make-og.py"
+  }
+}
