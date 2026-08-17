@@ -92,7 +92,7 @@ npm run og            # OGP画像の再生成(要Python + Pillow + Noto CJK)
 | 変数 | 必須 | 内容 |
 |---|---|---|
 | `RAKUTEN_APPLICATION_ID` | 本番時 | 楽天ウェブサービスの **applicationId** |
-| `RAKUTEN_ACCESS_KEY` | 本番時 | 楽天ウェブサービスの **accessKey**(Ichiba Item Search API **v2026-07-01以降で必須**。リクエストヘッダーで送信) |
+| `RAKUTEN_ACCESS_KEY` | 本番時 | 楽天ウェブサービスの **accessKey**(Ichiba Item Search API **v2026-07-01以降で必須**。公式Test Formと同じクエリパラメータ方式で送信。組み立てURLはログ等へ一切出力しない) |
 | `RAKUTEN_AFFILIATE_ID` | 任意 | 楽天**アフィリエイトID**。設定すると返礼品リンクがアフィリエイトリンクになり「PR」表示が点灯 |
 | `MOCK_MODE` | 任意 | `true` でキー設定済みでもサンプルデータ動作(検証用)。本番では削除または `false` |
 

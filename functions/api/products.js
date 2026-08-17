@@ -104,6 +104,9 @@ export async function onRequestGet(ctx) {
     return json({ error: "bad_request", detail: "mode は municipality か budget を指定してください" }, 400);
   } catch (e) {
     const status = /** @type {any} */ (e)?.status;
+    const kind = /** @type {any} */ (e)?.rakutenError || /** @type {any} */ (e)?.name || "unknown";
+    // 診断ログ(秘密情報なし): 上流status / 楽天errorコード or 例外名のみ
+    console.error("[products] upstream failure -> 502 fallback", status ?? "-", kind);
     if (status === 429) {
       return json({ error: "rate_limited", detail: "楽天APIのリクエスト上限に達しました" }, 502, {
         "retry-after": "5", "cache-control": "no-store"
@@ -113,7 +116,7 @@ export async function onRequestGet(ctx) {
       return json({ error: "upstream_maintenance", detail: "楽天APIがメンテナンス中です" }, 502, { "cache-control": "no-store" });
     }
     const isAbort = /** @type {any} */ (e)?.name === "AbortError";
-    return json({ error: isAbort ? "upstream_timeout" : "upstream_error" }, 502, { "cache-control": "no-store" });
+    return json({ error: isAbort ? "upstream_timeout" : "upstream_error", ...(Number.isInteger(status) ? { upstream_status: status } : {}) }, 502, { "cache-control": "no-store" });
   }
 }
 

@@ -1,7 +1,7 @@
 // @ts-check
 // 楽天市場商品検索API(v2026-07-01)のレスポンスをサイト共通のProduct型へ変換する層。
 // 楽天API仕様が変わってもUI全体は変更不要(この層だけ直す)。
-// formatVersion=1(items[].item)と2(items[]フラット)の両形式に耐えるよう防御的に書く。
+// formatVersion=1(Items[].Item ※大文字。小文字itemも防御的に許容)と2(items[]フラット)の両形式に耐える。
 
 /**
  * @param {any} raw 楽天APIのitem(v1のラップ/ v2のフラット両対応)
@@ -9,7 +9,10 @@
  * @returns {import("../../../public/assets/js/lib/types.js").Product | null}
  */
 export function mapRakutenItem(raw, ctx) {
-  const item = raw && typeof raw === "object" && "item" in raw ? raw.item : raw;
+  // v1は Items[].Item(大文字)。防御的に小文字itemも受ける。v2はフラット。
+  const item = raw && typeof raw === "object"
+    ? ("Item" in raw ? raw.Item : "item" in raw ? raw.item : raw)
+    : null;
   if (!item || typeof item !== "object") return null;
   const title = typeof item.itemName === "string" ? item.itemName : null;
   const price = Number(item.itemPrice);
@@ -56,6 +59,7 @@ export function pickImage(item) {
  */
 export function isFurusatoShopOf(item, municipalityCode) {
   const shopCode = typeof item?.shopCode === "string" ? item.shopCode
+    : typeof item?.Item?.shopCode === "string" ? item.Item.shopCode
     : typeof item?.item?.shopCode === "string" ? item.item.shopCode : "";
   return shopCode.startsWith(`f${municipalityCode}`);
 }
