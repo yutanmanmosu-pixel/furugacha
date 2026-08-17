@@ -18,7 +18,7 @@
       </fieldset>
       <p id="budget-error" class="error" hidden role="alert"></p>
       <div class="scope-run">
-        <button id="budget-run" type="submit" class="btn btn--primary btn--xl">🎰 おまかせガチャをまわす</button>
+        <button id="budget-run" type="submit" class="btn btn--primary btn--xl">🎰 <span class="nobr">おまかせ</span><span class="nobr">ガチャをまわす</span></button>
       </div>
       <p class="note center">まだ予算が決まっていない方は、<a href="/calculator/">控除上限シミュレーター</a>で目安をチェックできます。</p>
     </form>
@@ -28,7 +28,7 @@
         <h2 class="section-title" style="margin:0">今回の組み合わせ</h2>
         <span id="budget-pr-badge" class="pr-badge" hidden>PR</span>
       </div>
-      <p id="budget-summary" class="budget-summary"></p>
+      <p id="budget-summary" class="budget-summary" aria-live="polite"></p>
       <p id="budget-note" class="note"></p>
       <div id="budget-grid" class="products-grid" aria-live="polite"></div>
       <p class="center" style="margin-top:22px"><button id="budget-again" type="button" class="btn btn--primary">🎰 同じ条件でもう一回</button></p>

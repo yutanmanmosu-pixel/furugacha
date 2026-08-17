@@ -39,6 +39,7 @@ let category = "random";
 /** @type {import("../lib/types.js").Product[]} */
 let poolCache = [];
 let poolKey = "";
+let busy = false;
 
 init();
 
@@ -94,6 +95,7 @@ function init() {
 }
 
 async function run() {
+  if (busy) return; // Enter連打・多重実行防止
   const budget = parseBudget(els.input.value);
   if (budget == null) {
     els.error.hidden = false;
@@ -104,6 +106,7 @@ async function run() {
   els.error.hidden = true;
   try { sessionStorage.setItem(HANDOFF_KEY, String(budget)); } catch { /* 無効環境は無視 */ }
 
+  busy = true;
   els.run.disabled = true;
   els.again.disabled = true;
   els.result.hidden = false;
@@ -152,6 +155,7 @@ async function run() {
     console.error(e);
     els.summary.textContent = "取得に失敗しました。時間をおいて再度お試しください。";
   } finally {
+    busy = false;
     els.grid.setAttribute("aria-busy", "false");
     els.run.disabled = false;
     els.again.disabled = false;

@@ -1,6 +1,4 @@
 User-agent: *
 Allow: /
-Disallow: /favorites/
-Disallow: /history/
 
 Sitemap: https://furugacha.jp/sitemap.xml

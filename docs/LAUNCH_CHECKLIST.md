@@ -2,12 +2,12 @@
 
 上から順に進めれば公開できます。**[必須]** はローンチ前に必ず実施してください。
 
-## 1. サイト情報の差し替え [必須]
-`scripts/generate-pages.py` の冒頭定数を編集 → `npm run build:pages` で全ページへ反映されます。
-- [ ] `OPERATOR_NAME` … 運営者名または屋号(現在: 【要編集】プレースホルダ)
-- [ ] `CONTACT_EMAIL` … お問い合わせ用メールアドレス(現在: example@example.com)
-- [ ] `SITE_ORIGIN` … 本番URL(独自ドメイン取得後。canonical / OGP / sitemap / robots に反映)
-- [ ] 反映後、/operator/ /contact/ /privacy/ の表示を目視確認
+## 1. サイト情報の差し替え [設定済み・2026-08-18確認]
+`scripts/generate-pages.py` の冒頭定数は公開用に設定済み。変更時はここを編集 → `npm run build:pages`。
+- [x] `OPERATOR_NAME` = ふるガチャ運営事務局
+- [x] `CONTACT_EMAIL` = contact@furugacha.jp(Cloudflare Email Routingで受信)
+- [x] `SITE_ORIGIN` = https://furugacha.jp(canonical / OGP / sitemap / robots に反映済み)
+- [ ] 内容変更時は /operator/ /contact/ /privacy/ の表示を再確認
 
 ## 2. Cloudflare Pages デプロイ [必須]
 - [ ] GitHubへpush → PagesでConnect to Git(output: `public`、build command空欄)

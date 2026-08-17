@@ -60,6 +60,30 @@ const els = {
 };
 
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/** @param {number} ms */
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** 減速カーブ(ms): 高速 → 中速 → 減速 → 最後の数候補。最終要素は停止側で扱うため未使用。 */
+const SPIN_DELAYS = [52, 52, 52, 52, 52, 56, 62, 70, 80, 92, 106, 124, 146, 172, 205, 248, 305, 370];
+
+/** 回転中にマシン周囲へ小さな光を出す(reduced-motion時は呼ばれない) */
+function spawnSparks() {
+  clearSparks();
+  for (let i = 0; i < 7; i++) {
+    const sp = document.createElement("span");
+    sp.className = "gm-spark";
+    sp.style.left = `${16 + Math.random() * 68}%`;
+    sp.style.top = `${4 + Math.random() * 46}%`;
+    sp.style.animationDelay = `${(Math.random() * 0.9).toFixed(2)}s`;
+    els.stage.append(sp);
+  }
+}
+function clearSparks() {
+  for (const sp of els.stage.querySelectorAll(".gm-spark")) sp.remove();
+}
 const PREF_NAME_BY_CODE = Object.fromEntries(PREFECTURES.map((p) => [p.code, p.name]));
 
 /** @type {Municipality[]} */
@@ -69,6 +93,13 @@ let scope = { type: "all" };
 /** @type {Municipality | null} */
 let current = null;
 let spinning = false;
+/** この結果を生んだ範囲(演出中にUIで範囲を変えても結果表示とURLは一致させる) @type {GachaScope} */
+let resultScopeState = { type: "all" };
+/** 返礼品取得の世代トークン(連続ガチャ時に古い応答でUIを上書きしない) */
+let loadSeq = 0;
+let revealTimer = 0;
+let confettiTimer = 0;
+let shareTimer = 0;
 
 init().catch((e) => {
   console.error(e);
@@ -102,7 +133,10 @@ async function init() {
     e.preventDefault();
     void runGacha();
   });
-  els.btnAgain.addEventListener("click", () => void runGacha());
+  els.btnAgain.addEventListener("click", () => {
+    if (current) { scope = resultScopeState; syncScopeUi(); updateCount(); } // ラベル通り「同じ範囲」を保証
+    void runGacha();
+  });
   els.btnChange.addEventListener("click", () => {
     els.result.hidden = true;
     els.products.hidden = true;
@@ -119,7 +153,7 @@ async function init() {
     if (!current) return;
     const r = await shareResult(current);
     els.shareDone.textContent = r === "copied" ? "リンクをコピーしました" : r === "failed" ? "共有できませんでした" : "";
-    if (r !== "shared") setTimeout(() => { els.shareDone.textContent = ""; }, 3000);
+    if (r !== "shared") { clearTimeout(shareTimer); shareTimer = setTimeout(() => { els.shareDone.textContent = ""; }, 3000); }
   });
 
   // 共有リンク(?code=)からの直接表示
@@ -131,6 +165,7 @@ async function init() {
       if (pref) scope = { type: "prefecture", slug: pref.slug };
       syncScopeUi();
       updateCount();
+      resultScopeState = scope;
       await showResult(m, { animate: false, recordHistory: false });
     }
   }
@@ -174,6 +209,14 @@ function syncScopeUi() {
   }
 }
 
+/** 抽選演出中は範囲変更UIをロックする(結果と表示範囲の不一致防止) @param {boolean} on */
+function setScopeControlsDisabled(on) {
+  for (const r of els.typeRadios) r.disabled = on;
+  els.regionSelect.disabled = on;
+  els.prefSelect.disabled = on;
+  for (const b of els.chips.querySelectorAll("button")) b.disabled = on;
+}
+
 function updateCount() {
   const pool = filterByScope(all, scope);
   els.count.textContent = `対象範囲: ${scopeLabel(scope)}(${pool.length}自治体)`;
@@ -185,55 +228,69 @@ function updateCount() {
 async function runGacha() {
   if (spinning) return;
   const pool = filterByScope(all, scope);
-  const winner = drawMunicipality(all, scope);
+  const winner = drawMunicipality(all, scope); // 演出前に当選を確定(等確率・ロジック変更なし)
   if (!winner) {
     els.count.textContent = "この範囲には対象の自治体がありません。範囲を変えてお試しください。";
     return;
   }
   spinning = true;
+  resultScopeState = scope; // この時点の範囲で確定(以後の表示・履歴・URLはこれを使う)
   els.run.disabled = true;
   els.btnAgain.disabled = true;
-  els.result.hidden = true;
-  els.products.hidden = true;
-  els.stage.hidden = false;
-  els.status.textContent = "抽選中…";
-  els.stage.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
-
-  if (!reduceMotion && pool.length > 1) {
-    await playRoulette(pool, winner);
-  } else {
-    els.slot.textContent = winner.municipality;
+  setScopeControlsDisabled(true);
+  try {
+    els.result.hidden = true;
+    els.products.hidden = true;
+    els.stage.hidden = false;
+    els.stage.classList.remove("is-landed", "is-spinning");
+    els.slot.classList.remove("is-landed", "is-holding", "is-spinning");
+    els.status.textContent = "抽選中…";
+    els.stage.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
+    if (!reduceMotion && pool.length > 1) {
+      await playRoulette(pool, winner);
+    } else {
+      // reduced-motion または候補1件: 演出なしで即決定表示
+      els.slot.textContent = winner.municipality;
+    }
+    await showResult(winner, { animate: !reduceMotion, recordHistory: true });
+  } finally {
+    spinning = false;
+    els.run.disabled = false;
+    els.btnAgain.disabled = false;
+    setScopeControlsDisabled(false);
   }
-  await showResult(winner, { animate: !reduceMotion, recordHistory: true });
-  spinning = false;
-  els.run.disabled = false;
-  els.btnAgain.disabled = false;
 }
 
 /**
- * 高速切替 → だんだん減速 → 停止。
+ * 演出: 開始 → 高速切替 → 減速 → タメ → 当選自治体で停止。
+ * 抽選は呼び出し前に完了しており、最終停止は必ず winner(rouletteNamesの末尾要素)。
  * @param {Municipality[]} pool @param {Municipality} winner
  */
-function playRoulette(pool, winner) {
-  const names = rouletteNames(pool, winner, 26);
+async function playRoulette(pool, winner) {
+  const names = rouletteNames(pool, winner, SPIN_DELAYS.length);
+  // Phase 1: 開始 — ランプ点灯・マシン始動
+  els.stage.classList.add("is-spinning");
   els.slot.classList.add("is-spinning");
-  return new Promise((resolve) => {
-    let i = 0;
-    let delay = 55;
-    const tick = () => {
-      els.slot.textContent = names[i] ?? winner.municipality;
-      i++;
-      if (i >= names.length) {
-        els.slot.classList.remove("is-spinning");
-        els.slot.classList.add("is-landed");
-        setTimeout(() => { els.slot.classList.remove("is-landed"); resolve(undefined); }, 350);
-        return;
-      }
-      delay = Math.min(delay * 1.16, 340);
-      setTimeout(tick, delay);
-    };
-    tick();
-  });
+  spawnSparks();
+  els.slot.textContent = "抽選スタート!";
+  await sleep(300);
+  // Phase 2-3: 高速切替 → 減速(最後の1つ手前まで)
+  for (let i = 0; i < names.length - 1; i++) {
+    els.slot.textContent = names[i] ?? winner.municipality;
+    await sleep(SPIN_DELAYS[i] ?? 300);
+  }
+  // タメ: 止まりそうで止まらない
+  els.slot.classList.add("is-holding");
+  els.status.textContent = "そろそろ止まります…";
+  await sleep(480);
+  // Phase 4: 決定 — 必ず当選自治体で停止
+  els.slot.classList.remove("is-holding", "is-spinning");
+  els.stage.classList.remove("is-spinning");
+  clearSparks();
+  els.slot.textContent = names[names.length - 1] ?? winner.municipality;
+  els.slot.classList.add("is-landed");
+  els.stage.classList.add("is-landed");
+  await sleep(640); // バウンス・カプセル排出・フラッシュを見せる
 }
 
 /**
@@ -243,8 +300,18 @@ function playRoulette(pool, winner) {
 async function showResult(m, opts) {
   current = m;
   els.stage.hidden = true;
+  els.stage.classList.remove("is-spinning", "is-landed");
+  els.slot.classList.remove("is-spinning", "is-holding", "is-landed");
+  clearSparks();
   els.result.hidden = false;
-  els.resultScope.textContent = `${scopeLabel(scope)}ガチャの結果`;
+  els.result.classList.remove("is-reveal");
+  if (opts.animate) {
+    void els.result.offsetWidth; // アニメーション再トリガー用リフロー
+    els.result.classList.add("is-reveal");
+    clearTimeout(revealTimer);
+    revealTimer = setTimeout(() => els.result.classList.remove("is-reveal"), 700);
+  }
+  els.resultScope.textContent = `${scopeLabel(resultScopeState)}ガチャの結果`;
   els.resultPref.textContent = m.prefecture;
   els.resultMuni.textContent = m.municipality;
   els.status.textContent = `決定! 今回の運命の自治体は ${m.prefecture}${m.municipality} です`;
@@ -259,8 +326,8 @@ async function showResult(m, opts) {
   els.productsMore.href = searchUrl;
 
   // 履歴・URL(共有可能なディープリンク)
-  if (opts.recordHistory) pushGachaHistory({ scopeLabel: scopeLabel(scope), municipality: m });
-  const qs = scopeToQuery(scope);
+  if (opts.recordHistory) pushGachaHistory({ scopeLabel: scopeLabel(resultScopeState), municipality: m });
+  const qs = scopeToQuery(resultScopeState);
   history.replaceState(null, "", `${location.pathname}?${qs ? qs + "&" : ""}code=${m.municipalityCode}`);
 
   if (opts.animate) burstConfetti();
@@ -277,20 +344,23 @@ function paintFavButton(on) {
 function burstConfetti() {
   els.confetti.replaceChildren();
   const colors = ["#F58220", "#FFC93C", "#2E7D4F", "#EF6351", "#7EC8E3"];
-  for (let i = 0; i < 26; i++) {
+  for (let i = 0; i < 30; i++) {
     const s = document.createElement("span");
     s.className = "confetti";
     s.style.setProperty("--x", `${Math.random() * 100}%`);
     s.style.setProperty("--d", `${0.9 + Math.random() * 1.1}s`);
     s.style.setProperty("--r", `${Math.random() * 720 - 360}deg`);
+    s.style.setProperty("--s", `${7 + Math.random() * 7}px`);
     s.style.background = colors[i % colors.length] ?? "#F58220";
     els.confetti.append(s);
   }
-  setTimeout(() => els.confetti.replaceChildren(), 2400);
+  clearTimeout(confettiTimer);
+  confettiTimer = setTimeout(() => els.confetti.replaceChildren(), 2400);
 }
 
 /** @param {Municipality} m */
 async function loadProducts(m) {
+  const seq = ++loadSeq;
   els.products.hidden = false;
   els.productsTitle.textContent = m.municipality;
   els.productsGrid.setAttribute("aria-busy", "true");
@@ -301,6 +371,7 @@ async function loadProducts(m) {
     const products = await provider.searchByMunicipality({
       municipality: m.municipality, prefecture: m.prefecture, municipalityCode: m.municipalityCode, limit
     });
+    if (seq !== loadSeq) return; // すでに次のガチャが始まっている
     const isMock = mode === "mock" || products.every((p) => p.isMock);
     els.prBadge.hidden = !(status.hasAffiliate && !isMock);
     els.productsNote.textContent = isMock
@@ -312,9 +383,10 @@ async function loadProducts(m) {
     renderGenres(products);
   } catch (e) {
     console.error(e);
+    if (seq !== loadSeq) return;
     els.productsGrid.replaceChildren(msgEl("返礼品情報の取得に失敗しました。時間をおいて再度お試しください。"));
   } finally {
-    els.productsGrid.setAttribute("aria-busy", "false");
+    if (seq === loadSeq) els.productsGrid.setAttribute("aria-busy", "false");
   }
 }
 

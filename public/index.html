@@ -22,7 +22,7 @@
 <a class="skip-link" href="#main">本文へスキップ</a>
 <header class="site-header">
   <div class="site-header__inner">
-    <a class="brand" href="/"><svg class="brand__logo" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><circle cx="32" cy="24" r="19" fill="#EAF6FF" stroke="#BFDCE8" stroke-width="2"/><circle cx="25" cy="20" r="5.5" fill="#EF6351"/><circle cx="37" cy="17" r="5" fill="#FFC93C"/><circle cx="40" cy="27" r="5.5" fill="#7EC8E3"/><circle cx="28" cy="30" r="5" fill="#FFFFFF" stroke="#E3D9C2"/><rect x="12" y="36" width="40" height="22" rx="8" fill="#2E7D46"/><rect x="20" y="41" width="24" height="9" rx="4.5" fill="#FBF4E4"/><circle cx="32" cy="45.5" r="3" fill="#B9C3CC"/><rect x="24" y="53" width="16" height="4" rx="2" fill="#1E4027"/></svg><span><span class="brand__name">ふるガチャ</span><span class="brand__tag">知らない地域に、うれしい出会いを。</span></span></a>
+    <a class="brand" href="/"><svg class="brand__logo" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><circle cx="32" cy="24" r="19" fill="#EAF6FF" stroke="#BFDCE8" stroke-width="2"/><circle cx="25" cy="20" r="5.5" fill="#EF6351"/><circle cx="37" cy="17" r="5" fill="#FFC93C"/><circle cx="40" cy="27" r="5.5" fill="#7EC8E3"/><circle cx="28" cy="30" r="5" fill="#FFFFFF" stroke="#E3D9C2"/><rect x="12" y="36" width="40" height="22" rx="8" fill="#2E7D46"/><rect x="20" y="41" width="24" height="9" rx="4.5" fill="#FBF4E4"/><circle cx="32" cy="45.5" r="3" fill="#B9C3CC"/><rect x="24" y="53" width="16" height="4" rx="2" fill="#1E4027"/></svg><span><span class="brand__name">ふるガチャ</span><span class="brand__tag"><span class="nobr">知らない地域に、</span><span class="nobr">うれしい出会いを。</span></span></span></a>
     <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="メニューを開く">☰ メニュー</button>
     <nav id="site-nav" class="site-nav" aria-label="サイト内メニュー"><ul><li><a href="/about/">ふるガチャとは</a></li><li class="nav-cta"><a href="/gacha/">自治体ガチャ</a></li><li><a href="/budget-gacha/">予算ガチャ</a></li><li><a href="/calculator/">シミュレーター</a></li><li><a href="/municipalities/">自治体一覧</a></li><li><a href="/guide/">ガイド</a></li><li><a href="/faq/">FAQ</a></li></ul></nav>
   </div>
@@ -68,9 +68,9 @@
   <div class="hero__inner">
     <div>
       <h1 class="hero__title">今年のふるさと納税、<br><span class="em">どこにする?</span></h1>
-      <p class="hero__lead">知らない地域との出会いを、<span class="accent">ガチャ</span>で。<br>選ぶのは範囲だけ。あとは運命におまかせ。</p>
+      <p class="hero__lead">知らない地域との出会いを、<span class="accent">ガチャ</span>で。<br><span class="nobr">選ぶのは範囲だけ。</span><span class="nobr">あとは運命におまかせ。</span></p>
       <div class="hero__cta">
-        <a class="btn btn--primary btn--xl" href="#gacha">🎰 運命の自治体をガチャで決める</a>
+        <a class="btn btn--primary btn--xl" href="#gacha">🎰 <span class="nobr">運命の自治体を</span><span class="nobr">ガチャで決める</span></a>
         <a class="btn btn--ghost" href="/calculator/">上限額をチェックする</a>
       </div>
       <p class="hero__sub">無料・ログイン不要・個人情報の登録なし。寄附は楽天ふるさと納税(外部サイト)で行います。</p>
@@ -116,7 +116,7 @@
   <div class="container">
     <div class="center">
       <p class="section-kicker">メイン機能</p>
-      <h2 id="gacha-title" class="section-title">地域を選んで、<span class="deco">ガチャをまわそう!</span></h2>
+      <h2 id="gacha-title" class="section-title">地域を選んで、<span class="deco nobr">ガチャをまわそう!</span></h2>
       <p class="section-lead">選ぶのは「範囲」だけ。どの自治体に決まるかは、ガチャのお楽しみ。</p>
     </div>
 
@@ -157,24 +157,34 @@
         <div id="scope-map" class="scope-map-mini" aria-hidden="true"></div>
       </div>
       <div class="scope-run">
-        <button id="gacha-run" type="submit" class="btn btn--primary btn--xl">🎰 この範囲でガチャをまわす</button>
+        <button id="gacha-run" type="submit" class="btn btn--primary btn--xl">🎰 <span class="nobr">この範囲で</span><span class="nobr">ガチャをまわす</span></button>
       </div>
     </form>
 
     <div id="gacha-stage" class="gacha-stage" hidden>
       <svg class="gacha-stage__machine" viewBox="0 0 160 190" aria-hidden="true" focusable="false">
-        <circle cx="80" cy="62" r="52" fill="#EAF6FF" stroke="#C7DEEA" stroke-width="3"/>
-        <circle cx="62" cy="52" r="13" fill="#EF6351"/>
-        <circle cx="94" cy="42" r="12" fill="#FFC93C"/>
-        <circle cx="101" cy="70" r="13" fill="#7EC8E3"/>
-        <circle cx="72" cy="79" r="12" fill="#fff" stroke="#E3D9C2"/>
-        <rect x="26" y="106" width="108" height="64" rx="18" fill="#2E7D46"/>
-        <rect x="46" y="118" width="68" height="26" rx="10" fill="#FBF4E4"/>
-        <circle cx="80" cy="131" r="8" fill="#DDE4EA" stroke="#AEB9C4" stroke-width="2"/>
-        <rect x="76" y="124" width="8" height="14" rx="3" fill="#8C99A6" transform="rotate(35 80 131)"/>
-        <rect x="58" y="152" width="44" height="11" rx="5" fill="#1E4027"/>
-        <rect x="34" y="170" width="20" height="8" rx="4" fill="#1E4027"/>
-        <rect x="106" y="170" width="20" height="8" rx="4" fill="#1E4027"/>
+        <g class="gm">
+          <circle cx="80" cy="62" r="52" fill="#EAF6FF" stroke="#C7DEEA" stroke-width="3"/>
+          <circle class="gm-cap gm-cap--1" cx="62" cy="52" r="13" fill="#EF6351"/>
+          <circle class="gm-cap gm-cap--2" cx="94" cy="42" r="12" fill="#FFC93C"/>
+          <circle class="gm-cap gm-cap--3" cx="101" cy="70" r="13" fill="#7EC8E3"/>
+          <circle class="gm-cap gm-cap--4" cx="72" cy="79" r="12" fill="#fff" stroke="#E3D9C2"/>
+          <rect x="26" y="106" width="108" height="64" rx="18" fill="#2E7D46"/>
+          <g class="gm-lamps">
+            <circle class="gm-lamp" cx="38" cy="112" r="3.6"/>
+            <circle class="gm-lamp" cx="80" cy="110" r="3.6"/>
+            <circle class="gm-lamp" cx="122" cy="112" r="3.6"/>
+          </g>
+          <rect x="46" y="118" width="68" height="26" rx="10" fill="#FBF4E4"/>
+          <g class="gm-knob">
+            <circle cx="80" cy="131" r="8" fill="#DDE4EA" stroke="#AEB9C4" stroke-width="2"/>
+            <rect x="76" y="124" width="8" height="14" rx="3" fill="#8C99A6" transform="rotate(35 80 131)"/>
+          </g>
+          <rect x="58" y="152" width="44" height="11" rx="5" fill="#1E4027"/>
+          <circle class="gm-drop" cx="80" cy="150" r="9" fill="#EF6351" stroke="#C94B3B" stroke-width="2"/>
+          <rect x="34" y="170" width="20" height="8" rx="4" fill="#1E4027"/>
+          <rect x="106" y="170" width="20" height="8" rx="4" fill="#1E4027"/>
+        </g>
       </svg>
       <div><span id="gacha-slot" class="gacha-slot">???</span></div>
       <p id="gacha-status" class="visually-hidden" role="status"></p>
@@ -200,7 +210,7 @@
             <button id="btn-share" type="button" class="btn btn--ghost btn--sm">結果を共有</button>
             <span id="share-done" class="note" aria-live="polite"></span>
           </div>
-          <p><a id="result-rakuten-link" class="btn btn--green" href="https://event.rakuten.co.jp/furusato/" target="_blank" rel="noopener noreferrer">楽天ふるさと納税でこの自治体を見る ›</a></p>
+          <p><a id="result-rakuten-link" class="btn btn--green" href="https://event.rakuten.co.jp/furusato/" target="_blank" rel="noopener noreferrer"><span class="nobr">楽天ふるさと納税で</span><span class="nobr">この自治体を見る ›</span></a></p>
           <p class="result-positive">運命の出会い、いかがでしたか?気に入らなければ何度でも回してOK。寄附の前に、返礼品と自治体の情報をゆっくり確かめてくださいね。</p>
         </div>
         <div id="result-map" class="result-map" aria-hidden="true"></div>
@@ -214,7 +224,7 @@
       </div>
       <p id="products-note" class="note"></p>
       <div id="products-grid" class="products-grid" aria-live="polite"></div>
-      <p class="products-more"><a id="products-more-link" class="btn btn--ghost" href="https://event.rakuten.co.jp/furusato/" target="_blank" rel="noopener noreferrer">楽天ふるさと納税でもっと見る ›</a></p>
+      <p class="products-more"><a id="products-more-link" class="btn btn--ghost" href="https://event.rakuten.co.jp/furusato/" target="_blank" rel="noopener noreferrer"><span class="nobr">楽天ふるさと納税で</span><span class="nobr">もっと見る ›</span></a></p>
     </section>
   </div>
 </section>
@@ -228,7 +238,7 @@
     <div class="teaser-grid">
       <div class="teaser teaser--calc">
         <p class="teaser__ribbon">＼ いくらまで寄附できる? ／</p>
-        <h3>控除上限額のかんたんシミュレーション</h3>
+        <h3><span class="nobr">控除上限額の</span><span class="nobr">かんたん</span><span class="nobr">シミュレーション</span></h3>
         <p>年収と家族構成を入れるだけで、あなたの上限額の目安がわかります。上限を知らずに始めるのは損のもと。</p>
         <a class="btn btn--primary" href="/calculator/">シミュレーションをはじめる ›</a>
         <p class="note">※控除額は目安です。詳細は税理士等にご相談ください。</p>
@@ -330,8 +340,8 @@
     <div class="footer-grid">
       <div>
         <p class="footer-brand">🎰 ふるガチャ</p>
-        <p class="footer-note">知らない地域に、うれしい出会いを。<br>ふるさと納税する自治体を、ガチャで決めるサービスです。当サイトは特定の自治体・事業者の公式サイトではありません。</p>
-        <p class="footer-note">当サイトのリンクには広告(楽天アフィリエイト)を含みます。<br><a href="https://webservice.rakuten.co.jp/" rel="noopener" target="_blank">Supported by Rakuten Developers</a></p>
+        <p class="footer-note"><span class="nobr">知らない地域に、</span><span class="nobr">うれしい出会いを。</span><br>ふるさと納税する自治体を、ガチャで決めるサービスです。当サイトは特定の自治体・事業者の公式サイトではありません。</p>
+        <p class="footer-note">当サイトのリンクには広告(楽天アフィリエイト)を含みます。<br><a href="https://webservice.rakuten.co.jp/" rel="noopener noreferrer" target="_blank">Supported by Rakuten Developers</a></p>
       </div>
       <div>
         <h3>あそぶ</h3>

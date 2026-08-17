@@ -19,9 +19,10 @@ PUBLIC = ROOT / "public"
 SITE_ORIGIN = "https://furugacha.jp"  # 本番ドメイン取得後に変更
 SITE_NAME = "ふるガチャ"
 TAGLINE = "知らない地域に、うれしい出会いを。"
+TAGLINE_HTML = '<span class="nobr">知らない地域に、</span><span class="nobr">うれしい出会いを。</span>'
 OPERATOR_NAME = "ふるガチャ運営事務局"
 CONTACT_EMAIL = "contact@furugacha.jp"
-LASTMOD = "2026-08-17"
+LASTMOD = "2026-08-18"
 
 DEFAULT_DESC = (
     "ふるさと納税の寄附先が決められないなら、ガチャで運命の自治体に出会おう。"
@@ -128,7 +129,7 @@ def header_html(active_path: str) -> str:
         items.append(f'<li{cls}><a href="{href}"{cur}>{label}</a></li>')
     return f"""<header class="site-header">
   <div class="site-header__inner">
-    <a class="brand" href="/">{LOGO_SVG}<span><span class="brand__name">{SITE_NAME}</span><span class="brand__tag">{TAGLINE}</span></span></a>
+    <a class="brand" href="/">{LOGO_SVG}<span><span class="brand__name">{SITE_NAME}</span><span class="brand__tag">{TAGLINE_HTML}</span></span></a>
     <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="メニューを開く">☰ メニュー</button>
     <nav id="site-nav" class="site-nav" aria-label="サイト内メニュー"><ul>{''.join(items)}</ul></nav>
   </div>
@@ -139,8 +140,8 @@ FOOTER = f"""<footer class="site-footer">
     <div class="footer-grid">
       <div>
         <p class="footer-brand">🎰 {SITE_NAME}</p>
-        <p class="footer-note">{TAGLINE}<br>ふるさと納税する自治体を、ガチャで決めるサービスです。当サイトは特定の自治体・事業者の公式サイトではありません。</p>
-        <p class="footer-note">当サイトのリンクには広告(楽天アフィリエイト)を含みます。<br><a href="https://webservice.rakuten.co.jp/" rel="noopener" target="_blank">Supported by Rakuten Developers</a></p>
+        <p class="footer-note">{TAGLINE_HTML}<br>ふるさと納税する自治体を、ガチャで決めるサービスです。当サイトは特定の自治体・事業者の公式サイトではありません。</p>
+        <p class="footer-note">当サイトのリンクには広告(楽天アフィリエイト)を含みます。<br><a href="https://webservice.rakuten.co.jp/" rel="noopener noreferrer" target="_blank">Supported by Rakuten Developers</a></p>
       </div>
       <div>
         <h3>あそぶ</h3>
@@ -320,7 +321,8 @@ def main() -> None:
     (PUBLIC / "sitemap.xml").write_text(sitemap, encoding="utf-8")
 
     (PUBLIC / "robots.txt").write_text(
-        f"User-agent: *\nAllow: /\nDisallow: /favorites/\nDisallow: /history/\n\nSitemap: {SITE_ORIGIN}/sitemap.xml\n",
+        # noindexページはmetaで制御する(Disallowと併用するとクローラがnoindexを読めないため両立させない)
+        f"User-agent: *\nAllow: /\n\nSitemap: {SITE_ORIGIN}/sitemap.xml\n",
         encoding="utf-8")
 
     print(f"generated {len(written)} pages + sitemap.xml + robots.txt")

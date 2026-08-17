@@ -37,9 +37,18 @@ const els = {
   ctaBudgetAmount: must("#calc-cta-budget-amount")
 };
 
+let handoffLimit = 0;
+
 els.form.addEventListener("submit", (e) => {
   e.preventDefault();
   run();
+});
+
+// 予算ガチャへの金額引き継ぎ(リスナーは1回だけ登録し、金額は変数で更新)
+els.ctaBudget.addEventListener("click", () => {
+  if (handoffLimit > 0) {
+    try { sessionStorage.setItem(HANDOFF_KEY, String(handoffLimit)); } catch { /* noop */ }
+  }
 });
 
 function run() {
@@ -83,9 +92,7 @@ function run() {
     // 金額のワンタップ引き継ぎ: URL + sessionStorage の両方(再入力ゼロ)
     els.ctaBudget.href = `/budget-gacha/?budget=${r.limit}&source=calculator`;
     els.ctaBudgetAmount.textContent = yen(r.limit);
-    els.ctaBudget.addEventListener("click", () => {
-      try { sessionStorage.setItem(HANDOFF_KEY, String(r.limit)); } catch { /* noop */ }
-    }, { once: true });
+    handoffLimit = r.limit;
   }
 
   els.breakdown.replaceChildren(

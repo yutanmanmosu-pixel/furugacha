@@ -1,6 +1,11 @@
 // @ts-check
 // URL・入力値の安全な検証(指示書66: 負値/NaN/0/巨大値/不正文字への対応)
 
+/** 全角数字→半角(コピペ入力対策) @param {string} s */
+function normalizeDigits(s) {
+  return s.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+}
+
 export const BUDGET_MIN = 2_000;
 export const BUDGET_MAX = 2_000_000;
 
@@ -12,7 +17,7 @@ export const BUDGET_MAX = 2_000_000;
  */
 export function parseBudget(raw) {
   if (raw == null) return null;
-  const s = String(raw).replace(/[,，円\s]/g, "");
+  const s = normalizeDigits(String(raw)).replace(/[,，円\s]/g, "");
   if (!/^\d{1,9}$/.test(s)) return null;
   const n = Number(s);
   if (!Number.isSafeInteger(n)) return null;
@@ -36,7 +41,7 @@ export function parseSource(raw) {
  */
 export function parseSalaryMan(raw) {
   if (raw == null) return null;
-  const s = String(raw).replace(/[,，\s]/g, "");
+  const s = normalizeDigits(String(raw)).replace(/[,，\s]/g, "");
   if (!/^\d{1,6}$/.test(s)) return null;
   const man = Number(s);
   if (man <= 0 || man > 100_000) return null;
@@ -45,7 +50,7 @@ export function parseSalaryMan(raw) {
 
 /** 0〜9の人数入力 @param {string | number | null | undefined} raw */
 export function parseCount(raw) {
-  const n = Number(raw);
+  const n = Number(normalizeDigits(String(raw ?? "")));
   if (!Number.isInteger(n) || n < 0 || n > 9) return 0;
   return n;
 }
