@@ -141,7 +141,7 @@ FOOTER = f"""<footer class="site-footer">
       <div>
         <p class="footer-brand">🎰 {SITE_NAME}</p>
         <p class="footer-note">{TAGLINE_HTML}<br>ふるさと納税する自治体を、ガチャで決めるサービスです。当サイトは特定の自治体・事業者の公式サイトではありません。</p>
-        <p class="footer-note">当サイトのリンクには広告(楽天アフィリエイト)を含みます。<br><a href="https://webservice.rakuten.co.jp/" rel="noopener noreferrer" target="_blank">Supported by Rakuten Developers</a></p>
+        <p class="footer-note">当サイトのリンクには広告(楽天アフィリエイト)を含みます。<br><a href="https://developers.rakuten.com/" target="_blank">Supported by Rakuten Developers</a></p>
       </div>
       <div>
         <h3>あそぶ</h3>

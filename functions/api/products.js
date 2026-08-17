@@ -88,7 +88,7 @@ export async function onRequestGet(ctx) {
           imageFlag: "1",
           availability: "1",
           maxPrice: String(budget),
-          minPrice: "2000"
+          ...(budget > 2000 ? { minPrice: "2000" } : {})
         });
         const items = /** @type {any[]} */ (Array.isArray(body?.Items) ? body.Items : Array.isArray(body?.items) ? body.items : []);
         const products = items
