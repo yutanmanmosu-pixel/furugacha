@@ -10,6 +10,8 @@ import { muniNote } from "../lib/muni-notes.js";
 import { getProvider, fetchStatus } from "../providers/index.js";
 import { toggleFavMunicipality, isFavMunicipality, pushGachaHistory } from "../lib/storage.js";
 import { productCard, loadingEl, msgEl } from "./product-card.js";
+import { playGachaStart, playRattle, playLand } from "../lib/sound.js";
+import { PRODUCT_FETCH_LIMIT, splitProducts, moreLabel } from "../lib/product-paging.js";
 import { shareResult } from "../lib/share.js";
 
 /** @typedef {import("../lib/types.js").Municipality} Municipality */
@@ -56,7 +58,7 @@ const els = {
   prBadge: must("#pr-badge"),
   productsNote: must("#products-note"),
   productsGrid: must("#products-grid"),
-  productsMore: /** @type {HTMLAnchorElement} */ (must("#products-more-link"))
+  productsMore: /** @type {HTMLButtonElement} */ (must("#products-more-btn"))
 };
 
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -68,6 +70,9 @@ function sleep(ms) {
 
 /** 減速カーブ(ms): 高速 → 中速 → 減速 → 最後の数候補。最終要素は停止側で扱うため未使用。 */
 const SPIN_DELAYS = [52, 52, 52, 52, 52, 56, 62, 70, 80, 92, 106, 124, 146, 172, 205, 248, 305, 370];
+/** カラカラSEを鳴らすtickの位置(全7回)。既存のSPIN_DELAYSの間隔に便乗するため、
+ *  高速中は短い間隔・減速に合わせて自然に間隔が開く。アニメーション自体は不変更。 */
+const RATTLE_AT = new Set([0, 3, 6, 9, 12, 14, 16]);
 
 /** 回転中にマシン周囲へ小さな光を出す(reduced-motion時は呼ばれない) */
 function spawnSparks() {
@@ -98,6 +103,8 @@ let resultScopeState = { type: "all" };
 /** 返礼品取得の世代トークン(連続ガチャ時に古い応答でUIを上書きしない) */
 let loadSeq = 0;
 let revealTimer = 0;
+/** 追加表示待ちの返礼品(loadProductsで取得済み。ボタンは描画のみ行い再通信しない) @type {Product[]} */
+let pendingRest = [];
 let confettiTimer = 0;
 let shareTimer = 0;
 
@@ -133,6 +140,15 @@ async function init() {
     e.preventDefault();
     void runGacha();
   });
+  els.productsMore.addEventListener("click", () => {
+    if (pendingRest.length === 0) return;
+    const frag = document.createDocumentFragment();
+    for (const p of pendingRest) frag.append(productCard(p));
+    els.productsGrid.append(frag);
+    pendingRest = [];
+    els.productsMore.hidden = true;
+  });
+
   els.btnAgain.addEventListener("click", () => {
     if (current) { scope = resultScopeState; syncScopeUi(); updateCount(); } // ラベル通り「同じ範囲」を保証
     void runGacha();
@@ -234,6 +250,7 @@ async function runGacha() {
     return;
   }
   spinning = true;
+  playGachaStart(); // SE: 開始の「カチッ」(タイミング・演出は不変更、音のみ)
   resultScopeState = scope; // この時点の範囲で確定(以後の表示・履歴・URLはこれを使う)
   els.run.disabled = true;
   els.btnAgain.disabled = true;
@@ -249,8 +266,9 @@ async function runGacha() {
     if (!reduceMotion && pool.length > 1) {
       await playRoulette(pool, winner);
     } else {
-      // reduced-motion または候補1件: 演出なしで即決定表示
+      // reduced-motion または候補1件: 演出なしで即決定表示(決定音のみ)
       els.slot.textContent = winner.municipality;
+      playLand();
     }
     await showResult(winner, { animate: !reduceMotion, recordHistory: true });
   } finally {
@@ -277,6 +295,7 @@ async function playRoulette(pool, winner) {
   // Phase 2-3: 高速切替 → 減速(最後の1つ手前まで)
   for (let i = 0; i < names.length - 1; i++) {
     els.slot.textContent = names[i] ?? winner.municipality;
+    if (RATTLE_AT.has(i)) playRattle(); // SE: 文字切替ごとではなく計7回のみ
     await sleep(SPIN_DELAYS[i] ?? 300);
   }
   // タメ: 止まりそうで止まらない
@@ -290,6 +309,7 @@ async function playRoulette(pool, winner) {
   els.slot.textContent = names[names.length - 1] ?? winner.municipality;
   els.slot.classList.add("is-landed");
   els.stage.classList.add("is-landed");
+  playLand(); // SE: 決定の「コトン+キラ」(1セットのみ)
   await sleep(640); // バウンス・カプセル排出・フラッシュを見せる
 }
 
@@ -321,9 +341,11 @@ async function showResult(m, opts) {
   renderTileMap(els.resultMap, { activeCodes: new Set([prefCode]), prefNames: PREF_NAME_BY_CODE });
   paintFavButton(isFavMunicipality(m));
 
+  // 結果カードの緑CTAは自治体名での楽天内検索(従来仕様・非アフィリエイト)。
+  // 旧「楽天ふるさと納税でもっと見る」外部リンクは2026-08-18に削除(非正規アフィ導線のため)。
+  // 追加の返礼品はサイト内ボタン(#products-more-btn)で取得済みデータを描画する。
   const searchUrl = `https://search.rakuten.co.jp/search/mall/${encodeURIComponent(`ふるさと納税 ${m.municipality}`)}/`;
   els.rakutenLink.href = searchUrl;
-  els.productsMore.href = searchUrl;
 
   // 履歴・URL(共有可能なディープリンク)
   if (opts.recordHistory) pushGachaHistory({ scopeLabel: scopeLabel(resultScopeState), municipality: m });
@@ -365,11 +387,13 @@ async function loadProducts(m) {
   els.productsTitle.textContent = m.municipality;
   els.productsGrid.setAttribute("aria-busy", "true");
   els.productsGrid.replaceChildren(loadingEl());
+  pendingRest = [];
+  els.productsMore.hidden = true;
   try {
-    const limit = window.matchMedia("(min-width: 768px)").matches ? 6 : 4;
     const [{ provider, mode }, status] = await Promise.all([getProvider(), fetchStatus()]);
+    // 1回のAPI呼び出しで最大12件取得し、初期6件+「さらに◯件」はクライアント側で出し分ける(再通信なし)
     const products = await provider.searchByMunicipality({
-      municipality: m.municipality, prefecture: m.prefecture, municipalityCode: m.municipalityCode, limit
+      municipality: m.municipality, prefecture: m.prefecture, municipalityCode: m.municipalityCode, limit: PRODUCT_FETCH_LIMIT
     });
     if (seq !== loadSeq) return; // すでに次のガチャが始まっている
     const isMock = mode === "mock" || products.every((p) => p.isMock);
@@ -397,7 +421,11 @@ function renderProducts(products, m) {
     return;
   }
   const frag = document.createDocumentFragment();
-  for (const p of products) frag.append(productCard(p));
+  const { first, rest } = splitProducts(products);
+  for (const p of first) frag.append(productCard(p));
+  pendingRest = rest;
+  els.productsMore.textContent = moreLabel(rest.length);
+  els.productsMore.hidden = rest.length === 0;
   els.productsGrid.replaceChildren(frag);
 }
 

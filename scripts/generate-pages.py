@@ -130,8 +130,9 @@ def header_html(active_path: str) -> str:
     return f"""<header class="site-header">
   <div class="site-header__inner">
     <a class="brand" href="/">{LOGO_SVG}<span><span class="brand__name">{SITE_NAME}</span><span class="brand__tag">{TAGLINE_HTML}</span></span></a>
-    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="メニューを開く">☰ メニュー</button>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="メニューを開く">☰<span class="nav-toggle__label"> メニュー</span></button>
     <nav id="site-nav" class="site-nav" aria-label="サイト内メニュー"><ul>{''.join(items)}</ul></nav>
+    <button id="se-toggle" class="se-toggle" type="button" aria-pressed="true" aria-label="効果音をオフにする"><span class="se-toggle__icon" aria-hidden="true">🔊</span><span class="se-toggle__label">SE</span></button>
   </div>
 </header>"""
 

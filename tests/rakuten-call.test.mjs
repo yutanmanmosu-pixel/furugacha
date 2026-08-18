@@ -189,3 +189,81 @@ test("products: 資格情報なしは楽天を呼ばず502(クライアントが
     assert.equal(urls.length, 0);
   });
 });
+
+// ---------- キャッシュTTL(2026-08-18: 0件600秒残留インシデントの回帰防止) ----------
+test("cache: 実商品あり=600秒 / rakuten正常0件=60秒 / 上流エラー=非キャッシュ(no-store)", async () => {
+  const v2item = { itemName: "【ふるさと納税】テスト", itemPrice: 5000, itemUrl: "https://item.rakuten.co.jp/f085464-sakai/y/", itemCode: "f085464-sakai:2", shopCode: "f085464-sakai" };
+  // 1) 実商品あり → s-maxage=600
+  await withFetch(() => jsonRes(200, { items: [v2item] }), async () => {
+    const res = await onRequestGet(req("mode=municipality&name=境町&pref=茨城県&code=085464&limit=6"));
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get("cache-control") ?? "", /s-maxage=600(?!\d)/);
+    assert.ok((await res.json()).products.length > 0);
+  });
+  // 2) 正常だが0件 → s-maxage=60(source:"rakuten"のまま)
+  await withFetch(() => jsonRes(200, { items: [] }), async () => {
+    const res = await onRequestGet(req("mode=budget&budget=5000&category=food&limit=6"));
+    assert.equal(res.status, 200);
+    const cc = res.headers.get("cache-control") ?? "";
+    assert.match(cc, /s-maxage=60(?!\d)/);
+    const body = await res.json();
+    assert.equal(body.source, "rakuten");
+    assert.equal(body.products.length, 0);
+  });
+  // 3) 上流エラー → no-store
+  await withFetch(() => jsonRes(503, { error: "maintenance" }), async () => {
+    const res = await onRequestGet(req("mode=budget&budget=5000&category=food&limit=6"));
+    assert.equal(res.status, 502);
+    assert.match(res.headers.get("cache-control") ?? "", /no-store/);
+  });
+});
+
+test("cache: エッジ(Cache API)へは成功時のみput(0件含む)・エラー時はputしない/ Mockはサーバー側に存在せずキャッシュ経路に乗らない", async () => {
+  /** @type {{cc: string|null}[]} */
+  const puts = [];
+  const fakeCaches = {
+    default: {
+      match: async () => undefined,
+      put: async (_key, /** @type {Response} */ res) => { puts.push({ cc: res.headers.get("cache-control") }); }
+    }
+  };
+  /** @type {Promise<any>[]} */
+  const waits = [];
+  /** @param {string} qs */
+  const ctx = (qs) => /** @type {any} */ ({
+    request: new Request(`https://furugacha.jp/api/products?${qs}`),
+    env: ENV,
+    waitUntil: (/** @type {Promise<any>} */ p) => { waits.push(p); }
+  });
+  /** @type {any} */ (globalThis).caches = fakeCaches;
+  try {
+    await withFetch(() => jsonRes(200, { items: [] }), async () => {
+      await onRequestGet(ctx("mode=budget&budget=5000&category=food&limit=6"));
+    });
+    await withFetch(() => jsonRes(503, { error: "x" }), async () => {
+      await onRequestGet(ctx("mode=budget&budget=6000&category=food&limit=6"));
+    });
+    await Promise.all(waits);
+    assert.equal(puts.length, 1, "putは成功レスポンス1回のみ(エラーはキャッシュしない)");
+    assert.match(puts[0]?.cc ?? "", /s-maxage=60(?!\d)/, "0件は60秒でput");
+    // Mock fallback はクライアント側(providers/index.js)で行われ、/api/products が
+    // mockデータを返すことはない = サーバーキャッシュに乗らない(資格情報なしは502: 既存テスト)
+  } finally {
+    delete (/** @type {any} */ (globalThis)).caches;
+  }
+});
+
+test("products: limit=12で最大12件返す(6+追加表示の取得側・1リクエスト)", async () => {
+  const items = Array.from({ length: 20 }, (_, i) => ({
+    itemName: `【ふるさと納税】品${i}`, itemPrice: 5000 + i,
+    itemUrl: `https://item.rakuten.co.jp/f085464-sakai/i${i}/`, itemCode: `f085464-sakai:${i}`, shopCode: "f085464-sakai"
+  }));
+  await withFetch(() => jsonRes(200, { items }), async (/** @type {URL[]} */ urls) => {
+    const res = await onRequestGet(req("mode=municipality&name=境町&pref=茨城県&code=085464&limit=12"));
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.products.length, 12, "limit=12で12件返っていない");
+    assert.equal(urls.length, 1, "1回のAPI呼び出しで取得する");
+  });
+});
+

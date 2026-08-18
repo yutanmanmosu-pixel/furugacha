@@ -11,5 +11,8 @@
     "validate:data": "node scripts/validate-municipalities.mjs",
     "dev": "npx wrangler pages dev public",
     "og": "python3 scripts/make-og.py"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
   }
 }

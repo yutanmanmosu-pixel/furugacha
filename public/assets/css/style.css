@@ -124,12 +124,16 @@ ul, ol { padding-left: 1.4em; margin: 0 0 1em; }
 
 /* ---------- buttons ---------- */
 .btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: .5em;
+  /* 2026-08-18: inline-flex(nowrap) + .nobr により狭幅でボタン内容が折返せず
+     右へはみ出して「中央より右にずれて見える」問題が起きていた。
+     flex-wrap + max-width/min-width で意味単位のまま行内折返しを可能にする(構造的対策)。 */
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-wrap: wrap; gap: .05em .5em; max-width: 100%; min-width: 0;
   font-family: inherit; font-weight: 800; font-size: 1rem; line-height: 1.3;
   padding: .8em 1.6em; border-radius: 999px; border: none; cursor: pointer;
   text-decoration: none; text-align: center; transition: transform .12s, box-shadow .12s, background .12s, filter .12s;
 }
-.btn:active { transform: translateY(1px); }
+.btn:active { transform: translateY(2px) scale(.985); } /* 押下感: 縦+微縮小のみ(横移動・寸法変更なし) */
 .btn--primary {
   background: linear-gradient(180deg, #F58C2B, var(--orange));
   color: #fff;
@@ -657,5 +661,45 @@ p, li, dd, .section-lead, .note, .faq .a { text-wrap: pretty; }
 /* 紙吹雪: 大きさに個体差 */
 .confetti { width: var(--s, 10px); height: calc(var(--s, 10px) * 1.5); }
 
-/* ガチャボタンの押し込み感を強調 */
-.btn--primary:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--orange-deep), var(--shadow); }
+/* 押下時はshadowを一段弱める(transformは.btn:activeに集約・横移動なし) */
+.btn--primary:active { box-shadow: 0 2px 0 var(--orange-deep), var(--shadow); filter: brightness(.98); }
+.btn--green:active { box-shadow: 0 1px 0 var(--green-deep); }
+.btn--ghost:active { background: var(--green-soft); }
+.btn--rakuten:active { box-shadow: 0 1px 0 #8f0000; }
+
+/* ============================================================
+   2026-08-18 v3: SEトグル / CTAの構造的センタリング / 追加表示ボタン / 狭幅調整
+   ============================================================ */
+/* --- ヘッダーのSE(効果音)トグル --- */
+.se-toggle {
+  display: inline-flex; align-items: center; gap: 5px; flex: none;
+  background: #fff; border: 2px solid var(--line); border-radius: 999px;
+  padding: 6px 12px; font-family: inherit; font-weight: 800; font-size: .82rem;
+  color: var(--ink); cursor: pointer; line-height: 1;
+  transition: background .12s, border-color .12s, color .12s, transform .08s;
+}
+.se-toggle:hover { border-color: var(--green); color: var(--green-deep); }
+.se-toggle:active { transform: translateY(1px); }
+.se-toggle.is-off { color: var(--ink-soft); background: var(--cream-deep); }
+.se-toggle__icon { font-size: 1rem; line-height: 1; }
+@media (max-width: 479px) {
+  .se-toggle__label { display: none; }        /* 狭幅はアイコン中心のコンパクト表示 */
+  .se-toggle { padding: 7px 9px; }
+  .nav-toggle__label { display: none; }        /* ハンバーガーも文字を隠して幅確保 */
+  .nav-toggle { padding: 8px 11px; }
+}
+
+/* --- 主要CTAの構造的センタリング(width:min + margin-inline:auto。負マージン等の補正は不使用) --- */
+.scope-run .btn { display: flex; width: min(100%, 430px); margin-inline: auto; }
+.products-more { text-align: center; }
+.products-more .btn { display: flex; width: min(100%, 430px); margin-inline: auto; }
+.products-more .btn[hidden] { display: none; } /* display:flexがhidden属性を打ち消さないように */
+@media (max-width: 480px) {
+  .hero__cta { flex-direction: column; align-items: center; gap: 10px; }
+  .hero__cta .btn { width: min(100%, 340px); }
+}
+
+/* --- 320px級の商品グリッドは1列に(窮屈さ・はみ出し防止) --- */
+@media (max-width: 339px) {
+  .products-grid { grid-template-columns: 1fr; }
+}

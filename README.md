@@ -38,7 +38,7 @@ furugacha/
 │     │  ├─ providers/         # 返礼品データ供給の抽象化(mock / rakuten / 自動フォールバック)
 │     │  └─ pages/             # ページごとの画面制御(gacha-app / budget / calculator ほか)
 │     ├─ img/                  # favicon / og.png / mock返礼品SVG(18種)
-│     └─ data/municipalities.json  # 自治体マスタ(184自治体・47都道府県、スターター版)
+│     └─ data/municipalities.json  # 自治体マスタ(全国の市区町村・47都道府県。下記§6の1コマンドで公式データから生成)
 ├─ functions/api/              # Pages Functions(秘密情報はここだけ): status.js / products.js / _lib/
 ├─ scripts/
 │  ├─ generate-pages.py        # ミニSSG(サイト定数はこのファイル冒頭)
@@ -108,14 +108,16 @@ npm run og            # OGP画像の再生成(要Python + Pillow + Noto CJK)
 - アフィリエイトURLの組み立てはサーバ側(楽天APIの `affiliateUrl` をそのまま使用)。**疑似的なアフィリエイトパラメータの捏造は行いません**。リンク先URLの決定はフロントでは `lib/product-link.js` の `getProductDestinationUrl()` に集約しています(`affiliateUrl(https)` → `productUrl` の順)。
 - 楽天ウェブサービス利用のクレジット「**Supported by Rakuten Developers**」を全ページフッターと広告掲載方針ページに表示済み。利用規約・レート制限(キャッシュ600秒で対応)を遵守してください。
 
-## 6. データ更新
+## 6. データ更新(自治体マスタ・全国版)
 
-- 自治体マスタ: `public/assets/data/municipalities.json`(現在は47都道府県×主要自治体184件のスターター版。`meta.isStarterSubset: true`)。
-- 全自治体(約1,700)へ拡張するには、総務省の「都道府県コード及び市区町村コード」CSVをダウンロードし:
+- 自治体マスタは総務省「都道府県コード及び市区町村コード」(公式一次情報)から生成します:
   ```bash
-  node scripts/update-municipalities.mjs path/to/soumu.csv   # Shift_JIS対応
-  npm run validate:data
+  node scripts/update-municipalities.mjs --fetch   # 公式Excelを直接取得して全自動生成
+  npm run validate:data && npm test
   ```
+  収録ポリシー: 市・町・村・東京都23特別区を収録 / 都道府県行・政令指定都市の行政区・北方領土6村(色丹・泊・留夜別・留別・紗那・蘂取)は除外。令和6年1月1日更新版では市792+町743+村183+特別区23の計 **1,741自治体** になります(件数は実行時の公式データから自動算出され、`meta.counts` に内訳が記録されます)。
+- 参照元: https://www.soumu.go.jp/denshijiti/code.html (Excel直リンクはスクリプト内に記載)。手動DLしたxlsx/CSVを渡す `node scripts/update-municipalities.mjs path/to/file` にも対応。
+- 自治体コードは公式値のみ使用(チェックディジット検証あり)。名称・コードの推測生成は行いません。
 - 税制(控除上限計算)は `public/assets/js/lib/calculator.js` に定数として集約。税制改正時はここを更新し `npm test`。
 
 ## 7. 法務・広告ポリシー(実装済み)

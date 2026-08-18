@@ -12,6 +12,20 @@ import { mapRakutenItem, isFurusatoShopOf } from "./_lib/mapper.js";
 
 const ALLOWED_CATEGORIES = new Set(["random", "food", "life", "travel"]);
 const CACHE_TTL_SECONDS = 600;
+/**
+ * 商品0件時の短縮TTL(秒)。
+ * 経緯: 本番接続作業中、復旧前に取得した {products:[]} が600秒エッジに残り、
+ * 楽天API復旧後もMock表示が続く事象が発生。0件は「一時的状態」の可能性が高いため
+ * 60秒だけキャッシュして早期に再問い合わせしつつ、完全非キャッシュによる
+ * 楽天APIへの無駄な連打は避ける。エラー(4xx/5xx/timeout)は従来どおり非キャッシュ。
+ */
+const CACHE_TTL_EMPTY_SECONDS = 60;
+
+/** 成功レスポンス用: 件数に応じたCache-Controlヘッダー値 @param {number} count */
+function successCacheControl(count) {
+  const ttl = count > 0 ? CACHE_TTL_SECONDS : CACHE_TTL_EMPTY_SECONDS;
+  return `public, max-age=60, s-maxage=${ttl}`;
+}
 
 /** @param {any} body @param {number} status @param {HeadersInit} [extra] */
 function json(body, status = 200, extra = {}) {
@@ -69,7 +83,7 @@ export async function onRequestGet(ctx) {
           .filter((/** @type {any} */ p) => p != null)
           .slice(0, limit);
         return json({ products, source: "rakuten", filteredByShop: official.length > 0 }, 200, {
-          "cache-control": `public, max-age=60, s-maxage=${CACHE_TTL_SECONDS}`
+          "cache-control": successCacheControl(products.length)
         });
       });
     }
@@ -96,7 +110,7 @@ export async function onRequestGet(ctx) {
           .filter((/** @type {any} */ p) => p != null)
           .slice(0, limit);
         return json({ products, source: "rakuten" }, 200, {
-          "cache-control": `public, max-age=60, s-maxage=${CACHE_TTL_SECONDS}`
+          "cache-control": successCacheControl(products.length)
         });
       });
     }
