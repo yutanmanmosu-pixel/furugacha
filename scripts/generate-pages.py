@@ -7,6 +7,7 @@ scripts/content/*.html の本文断片を共通レイアウトに流し込み、
 使い方: python3 scripts/generate-pages.py
 """
 from __future__ import annotations
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -23,6 +24,30 @@ TAGLINE_HTML = '<span class="nobr">知らない地域に、</span><span class="n
 OPERATOR_NAME = "ふるガチャ運営事務局"
 CONTACT_EMAIL = "contact@furugacha.jp"
 LASTMOD = "2026-08-18"
+
+# ====== キャッシュバスター(2026-08-18 恒久対策) ======
+# CSS/JS全ファイルの内容からビルド版数を自動算出し、HTMLが参照するトップレベル
+# アセットURL(style.css / main.js / pages/*.js / favicon)へ ?v=<hash> を付与する。
+# ESMの子モジュール(lib/, providers/ 等)はimport文のURLを書き換えないため、
+# 旧キャッシュ排除は public/_headers の Cache-Control: no-cache(ETag/304再検証)で
+# 【全アセット共通に】担保する二層構成。人間による手動バージョン更新は不要。
+def compute_asset_version() -> str:
+    h = hashlib.sha256()
+    targets = sorted(
+        list((PUBLIC / "assets" / "css").rglob("*.css")) +
+        list((PUBLIC / "assets" / "js").rglob("*.js"))
+    )
+    for f in targets:
+        h.update(str(f.relative_to(PUBLIC)).replace("\\", "/").encode("utf-8"))
+        h.update(b"\n")
+        h.update(f.read_bytes())
+    return h.hexdigest()[:10]
+
+ASSET_VERSION = compute_asset_version()
+
+def asset(url: str) -> str:
+    """トップレベルアセットURLへビルド版数クエリを付与"""
+    return f"{url}?v={ASSET_VERSION}"
 
 DEFAULT_DESC = (
     "ふるさと納税の寄附先が決められないなら、ガチャで運命の自治体に出会おう。"
@@ -260,7 +285,7 @@ def render(page) -> str:
             .replace("{{SITE_ORIGIN}}", SITE_ORIGIN))
     crumb_html, crumb_ld = breadcrumb(page)
     robots = '<meta name="robots" content="noindex">' if page.get("noindex") else ""
-    scripts = "".join(f'<script type="module" src="{s}"></script>' for s in ["/assets/js/main.js", *page["scripts"]])
+    scripts = "".join(f'<script type="module" src="{asset(s)}"></script>' for s in ["/assets/js/main.js", *page["scripts"]])
     og_type = "article" if page["ptype"] == "article" else "website"
     title = page["title"] if page["ptype"] == "home" else f'{page["title"]}|{SITE_NAME}'
     return f"""<!DOCTYPE html>
@@ -279,8 +304,9 @@ def render(page) -> str:
 <meta property="og:image" content="{SITE_ORIGIN}/assets/img/og.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#2E7D46">
-<link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="/assets/css/style.css">
+<meta name="furugacha-build" content="{ASSET_VERSION}">
+<link rel="icon" href="{asset("/assets/img/favicon.svg")}" type="image/svg+xml">
+<link rel="stylesheet" href="{asset("/assets/css/style.css")}">
 {jsonld_for(page)}{crumb_ld}
 </head>
 <body>

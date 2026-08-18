@@ -4,6 +4,7 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
   Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://thumbnail.image.rakuten.co.jp https://shop.r10s.jp https://image.rakuten.co.jp https://r.r10s.jp https://tshop.r10s.jp; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests
+  Cache-Control: no-cache
 
-/assets/*
-  Cache-Control: public, max-age=3600
+/assets/img/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
