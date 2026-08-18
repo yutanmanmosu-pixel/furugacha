@@ -24,6 +24,15 @@ export const CATEGORY_KEYWORDS = {
 export const USER_AGENT = "furugacha/1.0 (+https://furugacha.jp)";
 
 /**
+ * 楽天アプリ設定「Allowed websites」(furugacha.jp登録済み)によるアクセス制御対策。
+ * 本番ログで 403 かつエラーボディ空(APIロジック手前=エッジ層での拒否)を確認したため、
+ * 呼び出し元サイトを Origin / Referer で明示する。サーバー間通信では既定で両ヘッダーが
+ * 送られず、登録サイト照合に失敗し得る。値は公開情報のみ(秘密は含まない)。
+ */
+export const RAKUTEN_ORIGIN = "https://furugacha.jp";
+export const RAKUTEN_REFERER = "https://furugacha.jp/";
+
+/**
  * 楽天APIを1回呼ぶ。
  * @param {{RAKUTEN_APPLICATION_ID:string, RAKUTEN_ACCESS_KEY:string, RAKUTEN_AFFILIATE_ID?:string}} creds
  * @param {Record<string,string>} query
@@ -47,7 +56,9 @@ export async function callRakuten(creds, query, opts = {}) {
       signal: ctrl.signal,
       headers: {
         accept: "application/json",
-        "user-agent": USER_AGENT
+        "user-agent": USER_AGENT,
+        origin: RAKUTEN_ORIGIN,
+        referer: RAKUTEN_REFERER
       }
     });
     const body = await res.json().catch(() => null);

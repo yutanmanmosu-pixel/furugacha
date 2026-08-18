@@ -9,7 +9,7 @@
 //   5) budget=2000 のとき minPrice を送らない(maxPrice>minPrice制約)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { callRakuten, RAKUTEN_ENDPOINT, USER_AGENT } from "../functions/api/_lib/rakuten.js";
+import { callRakuten, RAKUTEN_ENDPOINT, USER_AGENT, RAKUTEN_ORIGIN, RAKUTEN_REFERER } from "../functions/api/_lib/rakuten.js";
 import { onRequestGet } from "../functions/api/products.js";
 
 const CREDS = {
@@ -51,7 +51,18 @@ test("送信形式: accessKey/applicationId/affiliateId/formatVersion=2はクエ
   assert.equal(url.searchParams.get("keyword"), "ふるさと納税 境町");
   const headers = new Headers(init.headers);
   assert.equal(headers.get("user-agent"), USER_AGENT);
+  // Allowed websites照合対策: 呼び出し元サイトを明示(公開情報のみ)
+  assert.equal(headers.get("origin"), "https://furugacha.jp");
+  assert.equal(headers.get("origin"), RAKUTEN_ORIGIN);
+  assert.equal(headers.get("referer"), "https://furugacha.jp/");
+  assert.equal(headers.get("referer"), RAKUTEN_REFERER);
+  // 秘密情報はいかなるヘッダー名・値にも露出しない(accessKey/applicationId/affiliateId)
   assert.equal(headers.get("accesskey"), null, "accessKeyをヘッダーで送ってはいけない");
+  for (const [hk, hv] of headers.entries()) {
+    for (const secret of Object.values(CREDS)) {
+      assert.ok(!hk.includes(secret) && !hv.includes(secret), `ヘッダーに秘密が混入: ${hk}`);
+    }
+  }
 });
 
 test("affiliateId未設定なら付与しない(疑似アフィ禁止)・空クエリ値は送らない", async () => {
