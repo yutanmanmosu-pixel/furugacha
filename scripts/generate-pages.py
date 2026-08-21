@@ -305,6 +305,7 @@ def render(page) -> str:
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#2E7D46">
 <meta name="furugacha-build" content="{ASSET_VERSION}">
+<meta name="google-adsense-account" content="ca-pub-6256751733136266">
 <link rel="icon" href="{asset("/assets/img/favicon.svg")}" type="image/svg+xml">
 <link rel="stylesheet" href="{asset("/assets/css/style.css")}">
 {jsonld_for(page)}{crumb_ld}
