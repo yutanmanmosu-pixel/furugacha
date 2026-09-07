@@ -715,10 +715,24 @@ p, li, dd, .section-lead, .note, .faq .a { text-wrap: pretty; }
 }
 .search-fallback-cta__link:hover { color: var(--green); }
 
-/* ティーザー注記: 右下の装飾(.teaser__art)と重ならないよう狭幅では右に余白を取り、意味の切れ目で改行 */
-.teaser__disclaimer { margin-top: 14px; }
+/* ティーザー注記(2026-09-07改訂):
+   ・左右の注記はボタンとの余白を共通クラス(.teaser__note--spaced)で揃える(PC14px/狭幅18px)
+   ・予算カード注記は狭幅で右下の装飾(.teaser__art)を避ける右余白+意味単位の改行
+   ・控除カード注記は「詳細は税理士等にご相談ください。」を1行に保つため、狭幅では
+     装飾を注記の下に逃がす(カード下余白を拡張)方式にし、右余白による分断を避ける */
+.teaser__note--spaced { margin-top: 14px; }
 @media (max-width: 640px) {
+  .teaser__note--spaced { margin-top: 18px; }
   .teaser__note--clear { padding-right: 98px; }      /* art 72px + 右余白14px + 間隔12px */
   .teaser__note-break { display: block; }
-  .teaser__disclaimer { margin-top: 18px; }
+  .teaser--calc { padding-bottom: 84px; }            /* 注記の下に装飾(高さ72px+10px)を収める */
 }
+
+/* 自治体ガチャ: 返礼品0件/取得エラーの案内(エラー画面のように強調しない) */
+.products-empty {
+  background: #fff; border: 2px solid var(--line); border-radius: var(--radius);
+  padding: 18px 16px; text-align: center; margin-bottom: 12px;
+}
+.products-empty__title { font-weight: 700; margin: 0 0 6px; }
+.products-empty__sub { font-size: .85rem; color: var(--ink-soft); margin: 0 0 12px; }
+.products-empty__actions { margin: 0; }

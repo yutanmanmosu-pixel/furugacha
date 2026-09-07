@@ -17,16 +17,23 @@ test("検索サブ導線: 自治体ガチャ結果・予算ガチャ結果の両
   assert.match(css, /\.search-fallback-cta__link \{[^}]*font-weight: 700/);
 });
 
-test("ホーム: 予算カード注記が2行構造(装飾回避クラス+改行スパン)、控除注記に専用余白クラス", () => {
+test("ホーム: 予算注記は2行構造+装飾回避+共通余白クラス / 控除注記は意味単位の2スパンで『税理士等に』を分断しない / 左右の余白設計が共通", () => {
   const html = readFileSync("public/index.html", "utf8");
-  assert.ok(html.includes('<p class="note teaser__note--clear">※提案はランダムです。<span class="teaser__note-break">何度でも引き直せます。</span></p>'));
-  assert.ok(html.includes('<p class="note teaser__note--clear teaser__disclaimer">※控除額は目安です。<span class="teaser__note-break">詳細は税理士等にご相談ください。</span></p>'));
+  // 予算カード: 2行構造(改行スパン)・装飾回避(--clear)・ボタンとの余白(--spaced)
+  assert.ok(html.includes('<p class="note teaser__note--clear teaser__note--spaced">※提案はランダムです。<span class="teaser__note-break">何度でも引き直せます。</span></p>'));
+  // 控除カード: 文言不変・「詳細は税理士等にご相談ください。」を1つの単位として保持
+  assert.ok(html.includes('<p class="note teaser__note--spaced teaser__disclaimer"><span class="teaser__note-break">※控除額は目安です。</span><span class="teaser__note-break">詳細は税理士等にご相談ください。</span></p>'));
+  assert.ok(!/税理士等に<\/span>/.test(html) && !/<span[^>]*>ご相談ください/.test(html), "『税理士等に』『ご相談ください』の間で分断する構造になっている");
   const css = readFileSync("public/assets/css/style.css", "utf8");
-  assert.match(css, /\.teaser__disclaimer \{ margin-top: 14px; \}/);
-  // 狭幅(≤640px)ブロック内に「右余白」と「意味単位の改行」の両方が定義されていること(コメントの有無は問わない)
+  // PC: 左右共通の余白ルールが1箇所で定義され、旧・片側だけのルールは残っていない
+  assert.match(css, /\.teaser__note--spaced \{ margin-top: 14px; \}/);
+  assert.ok(!/\.teaser__disclaimer \{ margin-top/.test(css), "片側だけの余白ルールが残っている");
+  // 狭幅(≤640px): 余白拡大・装飾回避・意味単位改行・控除カードは装飾を注記の下へ逃がす
   const mobile = css.slice(css.lastIndexOf("@media (max-width: 640px) {"));
+  assert.match(mobile, /\.teaser__note--spaced \{ margin-top: 18px; \}/);
   assert.match(mobile, /\.teaser__note--clear \{ padding-right: 98px; \}/);
   assert.match(mobile, /\.teaser__note-break \{ display: block; \}/);
+  assert.match(mobile, /\.teaser--calc \{ padding-bottom: 84px; \}/);
 });
 
 test("予算ガチャ: 10,000円以上用の点数選択UI(おまかせ+1〜5点)と説明用noteが存在し、初期は非表示", () => {

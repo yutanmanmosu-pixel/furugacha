@@ -39,10 +39,15 @@ export async function fetchStatus() {
  * URLに ?mock=1 を付けると常にモック(動作検証用)。
  * @returns {Promise<{provider: FurusatoProductProvider, mode:"mock"|"rakuten"}>}
  */
+/** 直前の自治体別商品取得の結果。UIが「楽天正常0件」と「楽天APIエラー」を区別するために参照する。 */
+let lastMunicipalityFetch = { ok: true, mode: /** @type {"mock"|"rakuten"} */ ("mock") };
+export function getLastMunicipalityFetch() { return lastMunicipalityFetch; }
+
 export async function getProvider() {
   const forceMock = typeof location !== "undefined" && new URLSearchParams(location.search).get("mock") === "1";
   const s = await fetchStatus();
   if (forceMock || s.mode === "mock") {
+    lastMunicipalityFetch = { ok: true, mode: "mock" };
     return { provider: new MockFurusatoProductProvider(), mode: "mock" };
   }
   // 楽天モード: 失敗時にモックへ切り替えるラッパー
@@ -53,8 +58,12 @@ export async function getProvider() {
     async searchByMunicipality(q) {
       try {
         const items = await rakuten.searchByMunicipality(q);
+        lastMunicipalityFetch = { ok: true, mode: "rakuten" };
         if (items.length > 0) return items;
-      } catch (e) { console.warn("Rakuten API error → mockへフォールバック", e); }
+      } catch (e) {
+        lastMunicipalityFetch = { ok: false, mode: "rakuten" };
+        console.warn("Rakuten API error → mockへフォールバック", e);
+      }
       return mock.searchByMunicipality(q);
     },
     async searchByBudget(q) {

@@ -7,7 +7,8 @@ import { filterByScope, drawMunicipality, scopeLabel, scopeFromParams, scopeToQu
 import { REGIONS, PREFECTURES, prefByName } from "../lib/regions.js";
 import { renderTileMap } from "../lib/japan-map.js";
 import { muniNote } from "../lib/muni-notes.js";
-import { getProvider, fetchStatus } from "../providers/index.js";
+import { getProvider, fetchStatus , getLastMunicipalityFetch } from "../providers/index.js";
+import { productsEmptyState } from "../lib/products-empty.js";
 import { toggleFavMunicipality, isFavMunicipality, pushGachaHistory } from "../lib/storage.js";
 import { productCard, loadingEl, msgEl } from "./product-card.js";
 import { playGachaStart, playRattle, playLand } from "../lib/sound.js";
@@ -58,7 +59,11 @@ const els = {
   prBadge: must("#pr-badge"),
   productsNote: must("#products-note"),
   productsGrid: must("#products-grid"),
-  productsMore: /** @type {HTMLButtonElement} */ (must("#products-more-btn"))
+  productsMore: /** @type {HTMLButtonElement} */ (must("#products-more-btn")),
+  productsEmpty: /** @type {HTMLElement} */ (must("#products-empty")),
+  productsEmptyTitle: /** @type {HTMLElement} */ (must("#products-empty-title")),
+  productsEmptySub: /** @type {HTMLElement} */ (must("#products-empty-sub")),
+  productsEmptyAgain: /** @type {HTMLButtonElement} */ (must("#products-empty-again"))
 };
 
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -148,6 +153,8 @@ async function init() {
     pendingRest = [];
     els.productsMore.hidden = true;
   });
+
+  els.productsEmptyAgain.addEventListener("click", () => els.btnAgain.click()); // 既存の再抽選導線を再利用
 
   els.btnAgain.addEventListener("click", () => {
     if (current) { scope = resultScopeState; syncScopeUi(); updateCount(); } // ラベル通り「同じ範囲」を保証
@@ -389,6 +396,7 @@ async function loadProducts(m) {
   els.productsGrid.replaceChildren(loadingEl());
   pendingRest = [];
   els.productsMore.hidden = true;
+  els.productsEmpty.hidden = true;
   try {
     const [{ provider, mode }, status] = await Promise.all([getProvider(), fetchStatus()]);
     // 1回のAPI呼び出しで最大12件取得し、初期6件+「さらに◯件」はクライアント側で出し分ける(再通信なし)
@@ -396,30 +404,39 @@ async function loadProducts(m) {
       municipality: m.municipality, prefecture: m.prefecture, municipalityCode: m.municipalityCode, limit: PRODUCT_FETCH_LIMIT
     });
     if (seq !== loadSeq) return; // すでに次のガチャが始まっている
-    const isMock = mode === "mock" || products.every((p) => p.isMock);
-    els.prBadge.hidden = !(status.hasAffiliate && !isMock);
-    els.productsNote.textContent = isMock
+    // 楽天モードで返ってきた全件サンプル(=楽天0件/エラー時のmockフォールバック)は、
+    // 実在しない商品をこの自治体の返礼品のように見せないため、0件として案内表示に切り替える。
+    const fetchState = getLastMunicipalityFetch();
+    const fallbackSamples = mode === "rakuten" && products.length > 0 && products.every((p) => p.isMock);
+    const shown = fallbackSamples ? [] : products;
+    const isMock = mode === "mock" || (shown.length > 0 && shown.every((p) => p.isMock));
+    els.prBadge.hidden = !(status.hasAffiliate && !isMock && shown.length > 0);
+    els.productsNote.textContent = shown.length === 0 ? "" : isMock
       ? "※現在はサンプル表示です(実在の商品ではありません)。実際の返礼品はリンク先の楽天ふるさと納税でご確認ください。"
       : status.hasAffiliate
         ? "※以下には広告(楽天アフィリエイトのリンク)を含みます。寄附額・内容は必ずリンク先でご確認ください。"
         : "※楽天市場の検索結果をもとに表示しています。寄附額・内容は必ずリンク先でご確認ください。";
-    renderProducts(products, m);
-    renderGenres(products);
+    renderProducts(shown, m, fetchState.ok);
+    renderGenres(shown);
   } catch (e) {
     console.error(e);
     if (seq !== loadSeq) return;
-    els.productsGrid.replaceChildren(msgEl("返礼品情報の取得に失敗しました。時間をおいて再度お試しください。"));
+    els.productsNote.textContent = "";
+    els.prBadge.hidden = true;
+    showProductsEmpty(false);
   } finally {
     if (seq === loadSeq) els.productsGrid.setAttribute("aria-busy", "false");
   }
 }
 
 /** @param {Product[]} products @param {Municipality} m */
-function renderProducts(products, m) {
+function renderProducts(products, m, fetchOk = true) {
+  void m;
   if (products.length === 0) {
-    els.productsGrid.replaceChildren(msgEl(`${m.municipality}の返礼品が見つかりませんでした。楽天ふるさと納税で直接検索してみてください。`));
+    showProductsEmpty(fetchOk);
     return;
   }
+  els.productsEmpty.hidden = true;
   const frag = document.createDocumentFragment();
   const { first, rest } = splitProducts(products);
   for (const p of first) frag.append(productCard(p));
@@ -427,6 +444,18 @@ function renderProducts(products, m) {
   els.productsMore.textContent = moreLabel(rest.length);
   els.productsMore.hidden = rest.length === 0;
   els.productsGrid.replaceChildren(frag);
+}
+
+/** 返礼品0件(A)/取得エラー(B)の案内ブロックを表示。グリッドは空にする。 @param {boolean} fetchOk */
+function showProductsEmpty(fetchOk) {
+  const st = productsEmptyState(fetchOk);
+  els.productsEmptyTitle.textContent = st.title;
+  els.productsEmptySub.textContent = st.sub;
+  els.productsEmpty.dataset.kind = st.kind;
+  els.productsEmpty.hidden = false;
+  els.productsGrid.replaceChildren();
+  els.productsMore.hidden = true;
+  pendingRest = [];
 }
 
 /** @param {Product[]} products */
