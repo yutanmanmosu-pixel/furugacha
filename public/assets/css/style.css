@@ -703,3 +703,22 @@ p, li, dd, .section-lead, .note, .faq .a { text-wrap: pretty; }
 @media (max-width: 339px) {
   .products-grid { grid-template-columns: 1fr; }
 }
+
+/* ============================================================
+   2026-09-07: 検索サブ導線(2行) / ホームティーザー注記の余白 / 点数選択
+   ============================================================ */
+.search-fallback-cta { text-align: center; margin: 18px 0 0; font-size: .95rem; color: var(--ink-soft); line-height: 1.5; }
+.search-fallback-cta__lead { display: block; }
+.search-fallback-cta__link {
+  display: inline-block; margin-top: 4px; font-size: 1rem; font-weight: 700;
+  color: var(--green-deep); text-decoration: underline; text-underline-offset: 3px;
+}
+.search-fallback-cta__link:hover { color: var(--green); }
+
+/* ティーザー注記: 右下の装飾(.teaser__art)と重ならないよう狭幅では右に余白を取り、意味の切れ目で改行 */
+.teaser__disclaimer { margin-top: 14px; }
+@media (max-width: 640px) {
+  .teaser__note--clear { padding-right: 98px; }      /* art 72px + 右余白14px + 間隔12px */
+  .teaser__note-break { display: block; }
+  .teaser__disclaimer { margin-top: 18px; }
+}

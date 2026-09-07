@@ -11,6 +11,17 @@
         <input id="budget-input" name="budget" type="text" inputmode="numeric" autocomplete="off" placeholder="例: 50000">
         <p id="budget-handoff-note" class="note" hidden></p>
       </div>
+      <div id="budget-count-field" class="field" hidden>
+        <label for="budget-count">返礼品の点数<span class="hint">予算10,000円以上で選べます(最大5点)</span></label>
+        <select id="budget-count" name="budget-count">
+          <option value="auto" selected>おまかせ(最大5点)</option>
+          <option value="1">1点</option>
+          <option value="2">2点</option>
+          <option value="3">3点</option>
+          <option value="4">4点</option>
+          <option value="5">5点</option>
+        </select>
+      </div>
       <fieldset style="border:none;padding:0;margin:0">
         <legend class="field" style="font-weight:800;margin-bottom:0">カテゴリを選ぶ</legend>
         <div id="budget-categories"></div>
@@ -28,9 +39,11 @@
         <span id="budget-pr-badge" class="pr-badge" hidden>PR</span>
       </div>
       <p id="budget-summary" class="budget-summary" aria-live="polite"></p>
+      <p id="budget-count-note" class="note" hidden></p>
       <p id="budget-note" class="note"></p>
       <div id="budget-grid" class="products-grid" aria-live="polite"></div>
       <p class="center" style="margin-top:22px"><button id="budget-again" type="button" class="btn btn--primary">🎰 同じ条件でもう一回</button></p>
+      <p class="search-fallback-cta"><span class="search-fallback-cta__lead">やっぱり普通に探したい方は</span><a class="search-fallback-cta__link" href="/search/">返礼品をキーワードから探す ›</a></p>
     </section>
   </div>
 </section>

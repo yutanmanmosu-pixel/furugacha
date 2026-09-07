@@ -3,7 +3,7 @@
 // シミュレーターからの金額引き継ぎ(URL ?budget= & sessionStorage)に対応(指示書57-60)。
 
 import { parseBudget, parseSource, BUDGET_MIN, BUDGET_MAX } from "../lib/validate.js";
-import { generateBudgetSet } from "../lib/budget.js";
+import { generateBudgetSet, normalizeBudgetCount, BUDGET_MAX_ITEMS, BUDGET_COUNT_MIN_BUDGET } from "../lib/budget.js";
 import { CATEGORIES, categoryById } from "../lib/categories.js";
 import { getProvider, fetchStatus } from "../providers/index.js";
 import { yen } from "../lib/format.js";
@@ -28,6 +28,9 @@ const els = {
   error: must("#budget-error"),
   result: must("#budget-result"),
   summary: must("#budget-summary"),
+  countField: /** @type {HTMLElement} */ (must("#budget-count-field")),
+  count: /** @type {HTMLSelectElement} */ (must("#budget-count")),
+  countNote: /** @type {HTMLElement} */ (must("#budget-count-note")),
   prBadge: must("#budget-pr-badge"),
   note: must("#budget-note"),
   grid: must("#budget-grid"),
@@ -87,6 +90,14 @@ function init() {
     els.catWrap.append(label);
   }
 
+  // 点数選択は予算10,000円以上でのみ表示(それ未満はおまかせ・最大5点)
+  const syncCountField = () => {
+    const b = parseBudget(els.input.value);
+    els.countField.hidden = !(b != null && b >= BUDGET_COUNT_MIN_BUDGET);
+  };
+  els.input.addEventListener("input", syncCountField);
+  syncCountField();
+
   els.form.addEventListener("submit", (e) => {
     e.preventDefault();
     void run();
@@ -121,7 +132,10 @@ async function run() {
       poolCache = await provider.searchByBudget({ budget, category, limit: 120 });
       poolKey = key;
     }
-    const set = generateBudgetSet(poolCache, budget, { maxItems: 6, attempts: 14 });
+    const count = els.countField.hidden ? null : normalizeBudgetCount(els.count.value, budget);
+    const set = generateBudgetSet(poolCache, budget, { maxItems: BUDGET_MAX_ITEMS, count });
+    els.countNote.hidden = true;
+    els.countNote.textContent = "";
 
     if (set.items.length === 0) {
       els.summary.textContent = "この条件では組み合わせを作れませんでした。予算を増やすか、カテゴリを変えてお試しください。";
@@ -134,6 +148,10 @@ async function run() {
     els.summary.innerHTML =
       `予算 <strong>${yen(budget)}</strong> → <strong>${set.items.length}品</strong>` +
       `(合計 <strong>${yen(set.total)}</strong> / 残り ${yen(set.remaining)})・${munis}自治体`;
+    if (count != null && set.items.length < count) {
+      els.countNote.hidden = false;
+      els.countNote.textContent = `${count}点では予算内に収まる組み合わせがなかったため、条件に合う返礼品の中から${set.items.length}点を提案しました。`;
+    }
 
     const isMock = mode === "mock" || set.items.every((p) => p.isMock);
     els.prBadge.hidden = !(status.hasAffiliate && !isMock);

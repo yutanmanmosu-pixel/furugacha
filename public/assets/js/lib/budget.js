@@ -58,30 +58,137 @@ function buildOne(candidates, budget, maxItems, rng) {
   return { items: picked, total: budget - remaining, remaining };
 }
 
+/** 1回の提案で返す返礼品の上限(仕様: 6点以上は返さない) */
+export const BUDGET_MAX_ITEMS = 5;
+/** 点数指定UIを有効にする最低予算(円) */
+export const BUDGET_COUNT_MIN_BUDGET = 10_000;
+/** 総当たり探索に回す候補数の上限(C(24,5)=42,504通り程度で十分軽い) */
+const SEARCH_POOL_SIZE = 24;
+
 /**
- * 予算おまかせガチャ本体。複数パターンを生成し、
- * 「予算消化率が高く」「自治体がばらけている」候補を採用する。
- * 指定予算は決して超えない。
+ * 希望点数の正規化。予算10,000円未満・範囲外・非整数・NaN等は null(=おまかせ)。
+ * @param {unknown} raw @param {number} budget
+ * @returns {number | null}
+ */
+export function normalizeBudgetCount(raw, budget) {
+  if (!Number.isFinite(budget) || budget < BUDGET_COUNT_MIN_BUDGET) return null;
+  if (raw == null || raw === "" || raw === "auto") return null;
+  const n = typeof raw === "number" ? raw : Number(String(raw).trim());
+  if (!Number.isInteger(n) || n < 1 || n > BUDGET_MAX_ITEMS) return null;
+  return n;
+}
+
+/**
+ * 探索用の候補サンプル: シャッフル後、自治体が重ならないものを先に採用してから残りを埋める
+ * (毎回異なるサンプル→ガチャ性、かつ自治体の分散を促す)。
+ * @param {Product[]} valid @param {() => number} rng
+ */
+function samplePool(valid, rng) {
+  const pool = shuffled(valid, rng);
+  if (pool.length <= SEARCH_POOL_SIZE) return pool;
+  /** @type {Product[]} */
+  const out = [];
+  const seen = new Set();
+  for (const p of pool) {
+    if (out.length >= SEARCH_POOL_SIZE) break;
+    if (seen.has(p.municipality)) continue;
+    seen.add(p.municipality); out.push(p);
+  }
+  for (const p of pool) {
+    if (out.length >= SEARCH_POOL_SIZE) break;
+    if (!out.includes(p)) out.push(p);
+  }
+  return out;
+}
+
+/**
+ * サイズ k(1..maxItems) の組み合わせを予算内で列挙し visitor へ渡す(DFS・超過は枝刈り)。
+ * @param {Product[]} pool 金額降順
+ * @param {number} budget @param {number} maxItems
+ * @param {(items: Product[], total: number) => void} visit
+ */
+function enumerate(pool, budget, maxItems, visit) {
+  /** @type {Product[]} */
+  const stack = [];
+  /** @param {number} from @param {number} total */
+  const dfs = (from, total) => {
+    if (stack.length > 0) visit(stack.slice(), total);
+    if (stack.length >= maxItems) return;
+    for (let i = from; i < pool.length; i++) {
+      const p = /** @type {Product} */ (pool[i]);
+      if (total + p.amount > budget) continue; // 降順なので後続も超えるとは限らない(同額あり)→continue
+      stack.push(p);
+      dfs(i + 1, total + p.amount);
+      stack.pop();
+    }
+  };
+  dfs(0, 0);
+}
+
+/**
+ * 予算おまかせガチャ本体(2026-09-07改訂: 最大5点・点数指定・予算最適化)。
+ * 優先順位: ①予算を絶対に超えない ②指定点数(可能な範囲) ③合計を予算へ近づける
+ *          ④同一商品なし ⑤ガチャとしてのランダム性(近似最良の中から抽選)。
  * @param {Product[]} candidates 条件(カテゴリ等)で絞り込み済みの候補
  * @param {number} budget 予算(円)
- * @param {{maxItems?:number, attempts?:number, rng?:() => number}} [opts]
+ * @param {{maxItems?:number, attempts?:number, count?:number|null, rng?:() => number}} [opts]
  * @returns {BudgetSet}
  */
 export function generateBudgetSet(candidates, budget, opts = {}) {
-  const { maxItems = 6, attempts = 10, rng = Math.random } = opts;
-  const valid = candidates.filter((p) => Number.isFinite(p.amount) && p.amount > 0 && p.amount <= budget);
-  if (valid.length === 0) return { items: [], total: 0, remaining: budget };
+  const rng = opts.rng ?? Math.random;
+  const maxItems = Math.max(1, Math.min(BUDGET_MAX_ITEMS, opts.maxItems ?? BUDGET_MAX_ITEMS));
+  const empty = { items: [], total: 0, remaining: budget };
+  if (!Number.isFinite(budget) || budget <= 0) return empty;
 
-  /** @type {BudgetSet | null} */
-  let best = null;
-  let bestScore = -Infinity;
-  for (let i = 0; i < attempts; i++) {
-    const set = buildOne(valid, budget, maxItems, rng);
-    if (set.items.length === 0) continue;
-    const muniVariety = new Set(set.items.map((p) => p.municipality)).size;
-    // 予算消化率を主軸に、自治体の多様性を加点。品数過多は軽く減点。
-    const score = set.total / budget + muniVariety * 0.03 - set.items.length * 0.005;
-    if (score > bestScore) { bestScore = score; best = set; }
+  // 予算内・重複IDなしの候補
+  const seenIds = new Set();
+  /** @type {Product[]} */
+  const valid = [];
+  for (const p of candidates) {
+    if (!Number.isFinite(p.amount) || p.amount <= 0 || p.amount > budget) continue;
+    if (seenIds.has(p.id)) continue;
+    seenIds.add(p.id); valid.push(p);
   }
-  return best ?? { items: [], total: 0, remaining: budget };
+  if (valid.length === 0) return empty;
+
+  const pool = samplePool(valid, rng).sort((a, b) => b.amount - a.amount);
+  const requested = opts.count != null && opts.count >= 1 && opts.count <= maxItems ? Math.floor(opts.count) : null;
+
+  // パス1: サイズ別の最良合計
+  /** @type {number[]} */
+  const bestBySize = new Array(maxItems + 1).fill(-1);
+  enumerate(pool, budget, maxItems, (items, total) => {
+    const k = items.length;
+    if (total > (bestBySize[k] ?? -1)) bestBySize[k] = total;
+  });
+
+  // 採用サイズ: 指定点数 → 成立しなければ少ない点数へフォールバック。おまかせは全サイズ。
+  /** @type {Set<number>} */
+  let sizes = new Set();
+  if (requested != null) {
+    let k = requested;
+    while (k >= 1 && (bestBySize[k] ?? -1) < 0) k--;
+    if (k >= 1) sizes.add(k);
+  } else {
+    for (let k = 1; k <= maxItems; k++) if ((bestBySize[k] ?? -1) >= 0) sizes.add(k);
+  }
+  if (sizes.size === 0) return empty;
+  let bestTotal = -1;
+  for (const k of sizes) bestTotal = Math.max(bestTotal, bestBySize[k] ?? -1);
+
+  // パス2: 最良に近い組み合わせ(許容差: 予算の5%か500円の大きい方)を集め、
+  //        自治体の多様性で並べたうえで上位から抽選する(=近似最良×ランダム)。
+  const tolerance = Math.max(500, Math.round(budget * 0.05));
+  /** @type {{items: Product[], total: number, score: number}[]} */
+  const near = [];
+  enumerate(pool, budget, maxItems, (items, total) => {
+    if (!sizes.has(items.length) || total < bestTotal - tolerance) return;
+    const variety = new Set(items.map((p) => p.municipality)).size;
+    near.push({ items, total, score: total / budget + variety * 0.03 - items.length * 0.005 });
+  });
+  near.sort((a, b) => b.score - a.score);
+  const top = near.slice(0, Math.min(near.length, 8));
+  const chosen = top[Math.floor(rng() * top.length)] ?? top[0];
+  if (!chosen) return empty;
+  return { items: chosen.items, total: chosen.total, remaining: budget - chosen.total };
 }
