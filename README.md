@@ -71,6 +71,26 @@ npm run og            # OGP画像の再生成(要Python + Pillow + Noto CJK)
 
 **ページ本文を編集するとき**は `scripts/content/*.html` を直し、`npm run build:pages` を実行してください(`public/**/index.html` は生成物です)。
 
+**JS(`public/assets/js/**.js`)を編集したときも `npm run build:pages` が必要です。**
+`build:pages` は編集後のJSツリーを **`public/assets/js/v/<ビルド版数>/` へ複製**し、HTMLの
+`<script type="module">` をその配下のURLへ差し替えます(`v/` 配下は生成物。手で編集しないでください)。
+
+これは「新しい entry + 古い子モジュール」が同時にロードされて
+`Uncaught SyntaxError: does not provide an export named ...` でページ全体が停止する事故
+(2026-09-07 に自治体ガチャ・予算ガチャが本番で同時停止)への恒久対策です。
+ESMの相対import解決は import 元のURLを基準にするため、entry を `v/<版数>/` 配下から読み込めば
+`../lib/foo.js` などの子モジュールも自動的に同じ版数配下へ解決され、
+**entry と全ての推移的importが必ず同一リリースを参照します**。
+import文には版数を書きません(素の相対パスのままにして TypeScript が解決できる状態を保つため)。
+
+`v/` 配下は **現行版 + 過去3世代(最大4世代)** を保持します。デプロイ切替中や中間キャッシュに
+残った**旧HTML**が `/assets/js/v/<旧版数>/…` を要求しても404にせず、白画面にしないためです。
+世代順は `public/assets/js/v/versions.json`(生成物)で決定的に管理し、mtimeには依存しません
+(clone・チェックアウト・CIで容易に変わるため)。5世代目以降の最古世代のみ削除されます。
+
+回帰テストは `tests/version-skew.test.mjs` / `tests/esm-import-graph.test.mjs` /
+`tests/version-retention.test.mjs`。
+
 ## 4. デプロイ手順(Cloudflare Pages)
 
 1. このリポジトリをGitHubへpush。

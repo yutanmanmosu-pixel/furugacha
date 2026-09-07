@@ -20,5 +20,9 @@
   "include": [
     "public/assets/js/**/*.js",
     "functions/**/*.js"
+  ],
+  "exclude": [
+    "node_modules",
+    "public/assets/js/v"
   ]
 }

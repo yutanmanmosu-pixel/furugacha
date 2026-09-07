@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shutil
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -25,29 +26,179 @@ OPERATOR_NAME = "ふるガチャ運営事務局"
 CONTACT_EMAIL = "contact@furugacha.jp"
 LASTMOD = "2026-08-18"
 
-# ====== キャッシュバスター(2026-08-18 恒久対策) ======
-# CSS/JS全ファイルの内容からビルド版数を自動算出し、HTMLが参照するトップレベル
-# アセットURL(style.css / main.js / pages/*.js / favicon)へ ?v=<hash> を付与する。
-# ESMの子モジュール(lib/, providers/ 等)はimport文のURLを書き換えないため、
-# 旧キャッシュ排除は public/_headers の Cache-Control: no-cache(ETag/304再検証)で
-# 【全アセット共通に】担保する二層構成。人間による手動バージョン更新は不要。
+# ====== キャッシュバスター(2026-08-18 導入 / 2026-09-08 恒久改訂) ======
+# 【2026-09-08 改訂の背景 — 本番で両ガチャが同時停止した事故】
+# 旧方式は entry(main.js / pages/*.js)にだけ ?v=<hash> を付け、ESMの子モジュール
+# (lib/, providers/ 等)は素の相対URLのままだった。子のURLはリリースをまたいでも
+# 不変なので、配信側が長いブラウザキャッシュTTLを返すと
+#   「新しい entry + 古い child」
+# が同時にロードされ、named import が解決できず
+#   Uncaught SyntaxError: does not provide an export named ...
+# となってESMグラフ全体が【評価前に】停止する。実際に
+#   自治体ガチャ: getLastMunicipalityFetch / 予算ガチャ: BUDGET_COUNT_MIN_BUDGET
+# で発生し、ページは描画されるのにボタンが無反応になった。
+#
+# 【新方式】リリース単位のJSツリーを public/assets/js/v/<version>/ へ複製し、
+# HTMLはその配下の entry だけを参照する。ESMの相対import解決は「import元URL」を
+# 基準にするため、../lib/foo.js は自動的に同じ v/<version>/ 配下へ解決される。
+#   ・entry と全ての推移的(nested)import が構造的に同一リリースを参照する
+#   ・import文は一切書き換えない(=TypeScriptが解決できる素の相対パスのまま保つ)
+#   ・手動でのバージョン記入は不要(版数はCSS/JSの内容ハッシュから自動算出)
+#   ・配信側のTTLが誤って長く設定されても、新リリースは別ディレクトリ名になるため
+#     新旧混在が原理的に起こらない(Cloudflare設定への依存を断つ)
+# public/_headers の Cache-Control: no-cache は従来どおり第2層として維持する。
+#
+# 【世代保持(2026-09-08)】v/ 配下は「現行版 + 過去3世代」の最大4世代を保持する。
+# デプロイ切替中やHTMLが中間キャッシュに残っている間、旧HTMLが
+#   /assets/js/v/<旧version>/pages/gacha-app.js
+# を要求することがある。ここで旧ディレクトリを消してしまうと404になり、
+# version skewとは別の形でページ全体のJSが停止する。世代を残すことでこれを防ぐ。
+# 世代順は mtime ではなく versions.json(生成物・git管理下)で決定的に管理する。
+JS_ROOT = PUBLIC / "assets" / "js"
+VERSIONED_DIRNAME = "v"          # リリース単位JSツリーの置き場所(生成物)
+VERSIONED_ROOT = JS_ROOT / VERSIONED_DIRNAME
+VERSIONS_MANIFEST = VERSIONED_ROOT / "versions.json"
+KEEP_VERSIONS = 4                # 現行版 + 過去3世代
+VERSION_RE = re.compile(r"^[0-9a-f]{10}$")
+
+
+def source_js_files() -> list[Path]:
+    """版数計算・複製の対象となる「手書きJS」。生成物(v/配下)は必ず除外する
+       (含めると版数計算が自己参照になり収束しない)。"""
+    return sorted(
+        f for f in JS_ROOT.rglob("*.js")
+        if VERSIONED_DIRNAME not in f.relative_to(JS_ROOT).parts
+    )
+
+
+def normalized_bytes(f: Path) -> bytes:
+    """改行コード(CRLF/LF)の差で版数が変わらないよう正規化して読む。
+       Windowsのworking tree(autocrlf)とLinux CIで同じ版数になることを保証する。"""
+    return f.read_bytes().replace(b"\r\n", b"\n")
+
+
 def compute_asset_version() -> str:
     h = hashlib.sha256()
     targets = sorted(
-        list((PUBLIC / "assets" / "css").rglob("*.css")) +
-        list((PUBLIC / "assets" / "js").rglob("*.js"))
+        list((PUBLIC / "assets" / "css").rglob("*.css")) + source_js_files()
     )
     for f in targets:
         h.update(str(f.relative_to(PUBLIC)).replace("\\", "/").encode("utf-8"))
         h.update(b"\n")
-        h.update(f.read_bytes())
+        h.update(normalized_bytes(f))
     return h.hexdigest()[:10]
 
 ASSET_VERSION = compute_asset_version()
 
 def asset(url: str) -> str:
-    """トップレベルアセットURLへビルド版数クエリを付与"""
+    """トップレベルアセットURL(CSS/favicon)へビルド版数クエリを付与"""
     return f"{url}?v={ASSET_VERSION}"
+
+
+def js_asset(url: str) -> str:
+    """JS entry のURLをリリース単位ディレクトリ配下へ差し替える。
+       /assets/js/pages/gacha-app.js → /assets/js/v/<version>/pages/gacha-app.js
+       パスで版が決まるためクエリ版数は付けない(二重付与を避ける)。"""
+    prefix = "/assets/js/"
+    if not url.startswith(prefix):
+        raise ValueError(f"JS以外のURLが渡された: {url}")
+    return f"{prefix}{VERSIONED_DIRNAME}/{ASSET_VERSION}/{url[len(prefix):]}"
+
+
+def read_version_history() -> list[str]:
+    """versions.json に記録された世代順(新しい順)を読む。壊れていても生成は止めない。"""
+    if not VERSIONS_MANIFEST.exists():
+        return []
+    try:
+        data = json.loads(VERSIONS_MANIFEST.read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        return []
+    versions = data.get("versions") if isinstance(data, dict) else None
+    if not isinstance(versions, list):
+        return []
+    return [v for v in versions if isinstance(v, str) and VERSION_RE.match(v)]
+
+
+def existing_version_dirs() -> list[str]:
+    """v/ 配下に実在する世代ディレクトリ(名前順)。"""
+    if not VERSIONED_ROOT.exists():
+        return []
+    return sorted(
+        d.name for d in VERSIONED_ROOT.iterdir()
+        if d.is_dir() and VERSION_RE.match(d.name)
+    )
+
+
+def sync_versioned_js() -> Path:
+    """public/assets/js/v/<ASSET_VERSION>/ を手書きJSツリーの複製として同期し、
+       「現行版 + 過去3世代」だけを残す。
+
+       ファイル内容は一切書き換えない(バイト等価)。
+       世代順は versions.json(生成物・git管理下)で決定的に管理し、mtimeには依存しない
+       (mtimeはclone・チェックアウト・CIで容易に変わるため順序の根拠にできない)。
+       旧世代を残す理由: デプロイ切替中や中間キャッシュ上の旧HTMLが
+       /assets/js/v/<旧version>/... を要求しても404にしないため。"""
+    target = VERSIONED_ROOT / ASSET_VERSION
+
+    # 1) 現行版を生成(バイト等価コピー)
+    copied = 0
+    sources = source_js_files()
+    for src in sources:
+        dst = target / src.relative_to(JS_ROOT)
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        data = src.read_bytes()
+        if not dst.exists() or dst.read_bytes() != data:
+            dst.write_bytes(data)
+            copied += 1
+    # 現行版ツリー内で、ソース側から消えた/改名されたファイルの取り残しを掃除
+    # (過去世代のツリーはその当時のスナップショットなので絶対に触らない)
+    for stale in sorted(target.rglob("*.js")):
+        if not (JS_ROOT / stale.relative_to(target)).exists():
+            stale.unlink()
+    for d in sorted(target.rglob("*"), reverse=True):
+        if d.is_dir() and not any(d.iterdir()):
+            d.rmdir()
+
+    # 2) 既存の世代を確認し、3) 新しい順に並べる(現行版が必ず先頭)
+    on_disk = set(existing_version_dirs())
+    order = [ASSET_VERSION]
+    for v in read_version_history():          # マニフェストの順序 = 生成順(新しい順)
+        if v != ASSET_VERSION and v in on_disk and v not in order:
+            order.append(v)
+    for v in sorted(on_disk):                 # マニフェスト外(手動配置等)は名前順で末尾へ
+        if v not in order:
+            order.append(v)
+
+    # 4) 現行+過去3世代より古いものだけ削除
+    keep, drop = order[:KEEP_VERSIONS], order[KEEP_VERSIONS:]
+    for v in drop:
+        shutil.rmtree(VERSIONED_ROOT / v)
+    # 世代ディレクトリ以外の残骸(旧実装の置き土産など)も掃除する
+    for entry in sorted(VERSIONED_ROOT.iterdir()):
+        if entry.name == VERSIONS_MANIFEST.name:
+            continue
+        if entry.is_dir() and VERSION_RE.match(entry.name):
+            continue
+        shutil.rmtree(entry) if entry.is_dir() else entry.unlink()
+
+    # 5) 世代順を記録(タイムスタンプ等の非決定要素は入れない = 再実行しても同一内容)
+    VERSIONS_MANIFEST.write_text(
+        json.dumps(
+            {
+                "_note": "生成物。build:pages が管理する。versions[0] が現行版で、以降が新しい順の過去世代。"
+                         "旧HTML・中間キャッシュからの参照を404にしないため過去世代を保持する。",
+                "keep": KEEP_VERSIONS,
+                "versions": keep,
+            },
+            ensure_ascii=False, indent=2,
+        ) + "\n",
+        encoding="utf-8",
+    )
+
+    print(f"versioned JS tree: assets/js/{VERSIONED_DIRNAME}/{ASSET_VERSION}/ "
+          f"({len(sources)} files, {copied} written) | kept {len(keep)} generations: "
+          f"{', '.join(keep)}" + (f" | dropped: {', '.join(drop)}" if drop else ""))
+    return target
 
 DEFAULT_DESC = (
     "ふるさと納税の寄附先が決められないなら、全国1,741自治体からランダムに1つ選ぶ「自治体ガチャ」。"
@@ -291,7 +442,7 @@ def render(page) -> str:
             .replace("{{SITE_ORIGIN}}", SITE_ORIGIN))
     crumb_html, crumb_ld = breadcrumb(page)
     robots = '<meta name="robots" content="noindex">' if page.get("noindex") else ""
-    scripts = "".join(f'<script type="module" src="{asset(s)}"></script>' for s in ["/assets/js/main.js", *page["scripts"]])
+    scripts = "".join(f'<script type="module" src="{js_asset(s)}"></script>' for s in ["/assets/js/main.js", *page["scripts"]])
     og_type = "article" if page["ptype"] == "article" else "website"
     title = page["title"] if page["ptype"] == "home" else f'{page["title"]}|{SITE_NAME}'
     return f"""<!DOCTYPE html>
@@ -331,6 +482,7 @@ def render(page) -> str:
 
 
 def main() -> None:
+    sync_versioned_js()   # HTMLが参照するリリース単位JSツリーを先に用意する
     written = []
     for page in PAGES:
         html = render(page)

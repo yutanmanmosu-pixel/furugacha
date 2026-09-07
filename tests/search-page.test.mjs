@@ -26,7 +26,8 @@ test("生成物: /search/ ページが生成され、フォーム・結果エリ
     assert.ok(html.includes(`id="${id}"`), `要素がない: #${id}`);
   }
   assert.ok(html.includes('maxlength="50"'), "maxlength=50がない");
-  assert.ok(html.includes('/assets/js/pages/search.js?v='), "search.jsが読み込まれていない");
+  // 版数はパス(/assets/js/v/<hash>/)で表す方式に変更(2026-09-08)。cache-busting.test.mjs 参照。
+  assert.match(html, /\/assets\/js\/v\/[0-9a-f]{10}\/pages\/search\.js/, "search.jsが読み込まれていない");
 });
 
 test("導線: ガチャページとトップから /search/ へリンクし、sitemapにも収載される", () => {
