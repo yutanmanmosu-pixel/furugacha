@@ -12,6 +12,8 @@ import { mapRakutenItem, isFurusatoShopOf } from "./_lib/mapper.js";
 
 const ALLOWED_CATEGORIES = new Set(["random", "food", "life", "travel"]);
 const CACHE_TTL_SECONDS = 600;
+/** キーワード検索の最大文字数(クライアントのmaxlengthと一致させる) */
+const SEARCH_QUERY_MAX = 50;
 /**
  * 商品0件時の短縮TTL(秒)。
  * 経緯: 本番接続作業中、復旧前に取得した {products:[]} が600秒エッジに残り、
@@ -60,6 +62,40 @@ export async function onRequestGet(ctx) {
   const limit = clampInt(q.get("limit"), 1, 60, 6);
 
   try {
+    if (mode === "keyword") {
+      // 返礼品キーワード検索(2026-09-06追加)。ガチャ用の既存モードとは独立した読み取り専用分岐。
+      // Mockフォールバックはしない(検索意図と無関係な商品を出さないため、失敗はクライアントでエラー表示)。
+      const kw = (q.get("q") ?? "").trim();
+      if (!kw) return json({ error: "bad_request", detail: "q が空です" }, 400);
+      if (kw.length > SEARCH_QUERY_MAX) {
+        return json({ error: "bad_request", detail: `q は${SEARCH_QUERY_MAX}文字以内で指定してください` }, 400);
+      }
+      // キャッシュキーは正規化済み検索語で構築("  鶏肉  " と "鶏肉" を別キャッシュにしない)
+      const keyUrl = new URL(url);
+      keyUrl.searchParams.set("q", kw);
+      keyUrl.searchParams.set("limit", String(limit));
+      keyUrl.searchParams.sort();
+      return await withEdgeCache(ctx, async () => {
+        const body = await callRakuten(creds, {
+          keyword: `ふるさと納税 ${kw}`,
+          hits: "30",
+          imageFlag: "1",
+          availability: "1"
+        });
+        const items = /** @type {any[]} */ (Array.isArray(body?.Items) ? body.Items : Array.isArray(body?.items) ? body.items : []);
+        /** @type {any[]} */
+        const products = [];
+        for (const it of items) {
+          const p = mapRakutenItem(it, { municipality: "", prefecture: "" });
+          if (p) products.push(p);
+          if (products.length >= limit) break;
+        }
+        return json({ products, source: "rakuten" }, 200, {
+          "cache-control": successCacheControl(products.length)
+        });
+      }, keyUrl.toString());
+    }
+
     if (mode === "municipality") {
       const name = sanitizeText(q.get("name"));
       const pref = sanitizeText(q.get("pref"));
@@ -139,11 +175,11 @@ export async function onRequestGet(ctx) {
  * @param {{request: Request, waitUntil?: (p:Promise<any>)=>void}} ctx
  * @param {() => Promise<Response>} producer
  */
-async function withEdgeCache(ctx, producer) {
+async function withEdgeCache(ctx, producer, keyUrl = "") {
   try {
     const cache = /** @type {Cache | undefined} */ (/** @type {any} */ (globalThis.caches)?.default);
     if (!cache) return producer();
-    const key = new Request(ctx.request.url, { method: "GET" });
+    const key = new Request(keyUrl || ctx.request.url, { method: "GET" }); // keyword検索は正規化済みURLをキーにする
     const hit = await cache.match(key);
     if (hit) return hit;
     const res = await producer();

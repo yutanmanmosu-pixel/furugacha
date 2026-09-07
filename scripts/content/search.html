@@ -1,0 +1,29 @@
+<section class="section" style="padding-bottom:8px">
+  <div class="container center">
+    <h1 class="section-title">返礼品を<span class="deco nobr">キーワード</span>から探す</h1>
+    <p class="section-lead">欲しい返礼品が決まっている方はこちら。<span class="nobr">「鶏肉」「サーモン」「お米」</span>などの言葉で、楽天ふるさと納税の返礼品を検索できます。</p>
+  </div>
+</section>
+<section class="section" style="padding-top:0">
+  <div class="container">
+    <form id="search-form" class="card form-card" aria-label="返礼品キーワード検索">
+      <div class="field">
+        <label for="search-q">検索キーワード<span class="hint">50文字まで</span></label>
+        <input id="search-q" name="q" type="search" maxlength="50" autocomplete="off" placeholder="例：サーモン、鶏肉、お米">
+      </div>
+      <p class="scope-run" style="margin-bottom:0"><button id="search-run" class="btn btn--primary" type="submit">🔍 <span class="nobr">返礼品を</span><span class="nobr">検索する</span></button></p>
+    </form>
+
+    <section id="search-results" class="section" hidden aria-labelledby="search-results-title" style="padding-bottom:0">
+      <div id="search-head" class="products-head">
+        <h2 id="search-results-title" style="font-size:1.15rem;margin:0">「<span id="search-term"></span>」の検索結果</h2>
+        <span id="search-pr-badge" class="pr-badge" hidden>PR</span>
+      </div>
+      <p id="search-note" class="note"></p>
+      <div id="search-grid" class="products-grid" aria-busy="false"></div>
+      <p class="products-more"><button id="search-more-btn" class="btn btn--ghost" type="button" hidden></button></p>
+    </section>
+
+    <p class="note" style="text-align:center;margin-top:26px">運命に任せたい方は<a href="/gacha/">自治体ガチャ</a>へ。寄附額の目安は<a href="/calculator/">控除上限額シミュレーター</a>で確認できます。</p>
+  </div>
+</section>

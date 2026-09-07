@@ -267,3 +267,89 @@ test("products: limit=12で最大12件返す(6+追加表示の取得側・1リ�
   });
 });
 
+// ---------- 返礼品キーワード検索 mode=keyword(2026-09-06) ----------
+test("keyword検索: 送信形式(『ふるさと納税 』接頭+URLエンコード)・最大12件・600秒キャッシュ", async () => {
+  const items = Array.from({ length: 20 }, (_, i) => ({
+    itemName: `【ふるさと納税】サーモン${i}`, itemPrice: 10000 + i, shopName: `テスト町ショップ${i}`,
+    itemUrl: `https://item.rakuten.co.jp/f000000-x/i${i}/`, itemCode: `f000000-x:${i}`, shopCode: "f000000-x"
+  }));
+  await withFetch(() => jsonRes(200, { items }), async (/** @type {URL[]} */ urls) => {
+    const res = await onRequestGet(req(`mode=keyword&limit=12&q=${encodeURIComponent("サーモン")}`));
+    assert.equal(res.status, 200);
+    const u = urls[0];
+    assert.ok(u);
+    assert.equal(u?.searchParams.get("keyword"), "ふるさと納税 サーモン");
+    assert.ok(!u?.toString().includes("サーモン"), "検索語がURLエンコードされていない");
+    const body = await res.json();
+    assert.equal(body.source, "rakuten");
+    assert.equal(body.products.length, 12, "最大12件");
+    assert.equal(body.products[0].shopName, "テスト町ショップ0", "ショップ情報が落ちている");
+    assert.match(res.headers.get("cache-control") ?? "", /s-maxage=600(?!\d)/);
+    assert.equal(urls.length, 1);
+  });
+});
+
+test("keyword検索: 入力検証(空/空白のみ/50文字超は400で楽天を呼ばない・特殊文字は安全に通す)", async () => {
+  await withFetch(() => { throw new Error("呼ばれてはいけない"); }, async (/** @type {URL[]} */ urls) => {
+    for (const bad of ["", "   ", "あ".repeat(51)]) {
+      const res = await onRequestGet(req(`mode=keyword&limit=12&q=${encodeURIComponent(bad)}`));
+      assert.equal(res.status, 400, `q=${JSON.stringify(bad)}`);
+      assert.equal((await res.json()).error, "bad_request");
+    }
+    assert.equal(urls.length, 0);
+  });
+  await withFetch(() => jsonRes(200, { items: [] }), async () => {
+    const evil = `<script>alert(1)</script>`;
+    const res = await onRequestGet(req(`mode=keyword&limit=12&q=${encodeURIComponent(evil)}`));
+    assert.equal(res.status, 200); // 例外なく0件応答(描画側はtextContentで安全表示)
+    assert.equal((await res.json()).products.length, 0);
+  });
+});
+
+test("keyword検索: キャッシュキーは正規化済み検索語(前後空白で別キャッシュを作らない)", async () => {
+  /** @type {string[]} */
+  const keys = [];
+  const fakeCaches = { default: {
+    match: async (/** @type {Request} */ k) => { keys.push(k.url); return undefined; },
+    put: async () => {}
+  } };
+  /** @type {any} */ (globalThis).caches = fakeCaches;
+  try {
+    await withFetch(() => jsonRes(200, { items: [] }), async () => {
+      await onRequestGet(/** @type {any} */ ({
+        request: new Request(`https://furugacha.jp/api/products?mode=keyword&limit=12&q=${encodeURIComponent("  鶏肉  ")}`),
+        env: ENV, waitUntil: () => {}
+      }));
+    });
+    assert.equal(keys.length, 1);
+    assert.ok(keys[0]?.includes(`q=${encodeURIComponent("鶏肉")}`), `キーが正規化されていない: ${keys[0]}`);
+    assert.ok(!keys[0]?.includes("%20%E9%B6%8F"), "前後空白がキーに残っている");
+  } finally {
+    delete (/** @type {any} */ (globalThis)).caches;
+  }
+});
+
+test("keyword検索: 上流失敗は502(no-store)でMock商品を返さない・0件は60秒キャッシュ・秘密非漏えい", async () => {
+  const LONG_ENV = {
+    RAKUTEN_APPLICATION_ID: "APPID_1234567890abcdef",
+    RAKUTEN_ACCESS_KEY: "ACCESSKEY_fedcba0987654321",
+    RAKUTEN_AFFILIATE_ID: "AFFID_deadbeefcafe0123"
+  };
+  await withFetch(() => jsonRes(503, { error: "maintenance" }), async () => {
+    const res = await onRequestGet(/** @type {any} */ ({
+      request: new Request("https://furugacha.jp/api/products?mode=keyword&limit=12&q=%E7%89%9B%E8%82%89"),
+      env: LONG_ENV
+    }));
+    assert.equal(res.status, 502);
+    assert.match(res.headers.get("cache-control") ?? "", /no-store/);
+    const text = JSON.stringify(await res.json());
+    assert.ok(!text.includes("products"), "失敗時に商品配列(Mock等)を返してはいけない");
+    for (const secret of Object.values(LONG_ENV)) assert.ok(!text.includes(secret), "秘密が応答へ混入");
+  });
+  await withFetch(() => jsonRes(200, { items: [] }), async () => {
+    const res = await onRequestGet(req("mode=keyword&limit=12&q=%E3%81%86%E3%81%AA%E3%81%8E"));
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get("cache-control") ?? "", /s-maxage=60(?!\d)/);
+  });
+});
+

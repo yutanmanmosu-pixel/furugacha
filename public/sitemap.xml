@@ -2,6 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://furugacha.jp/</loc><lastmod>2026-08-18</lastmod><priority>1.0</priority></url>
   <url><loc>https://furugacha.jp/gacha/</loc><lastmod>2026-08-18</lastmod><priority>0.8</priority></url>
+  <url><loc>https://furugacha.jp/search/</loc><lastmod>2026-08-18</lastmod><priority>0.8</priority></url>
   <url><loc>https://furugacha.jp/budget-gacha/</loc><lastmod>2026-08-18</lastmod><priority>0.8</priority></url>
   <url><loc>https://furugacha.jp/calculator/</loc><lastmod>2026-08-18</lastmod><priority>0.8</priority></url>
   <url><loc>https://furugacha.jp/municipalities/</loc><lastmod>2026-08-18</lastmod><priority>0.8</priority></url>
