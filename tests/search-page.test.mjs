@@ -30,6 +30,14 @@ test("生成物: /search/ ページが生成され、フォーム・結果エリ
   assert.match(html, /\/assets\/js\/v\/[0-9a-f]{10}\/pages\/search\.js/, "search.jsが読み込まれていない");
 });
 
+test("例文: 検索入力の例が「例：サーモン、鶏肉、○○市」で、旧例文が残っていない", () => {
+  const html = readFileSync("public/search/index.html", "utf8");
+  assert.ok(html.includes("例：サーモン、鶏肉、○○市"), "新しい例文がない");
+  assert.ok(!html.includes("例：サーモン、鶏肉、お米"), "旧例文が残っている");
+  // 変更するのは表示文言だけ(検索仕様は不変)
+  assert.ok(html.includes('maxlength="50"') && html.includes('id="search-q"'));
+});
+
 test("導線: ガチャページとトップから /search/ へリンクし、sitemapにも収載される", () => {
   assert.ok(readFileSync("public/gacha/index.html", "utf8").includes('href="/search/"'), "ガチャ→検索の導線がない");
   assert.ok(readFileSync("public/index.html", "utf8").includes('href="/search/"'), "トップ→検索の導線がない");
