@@ -6,10 +6,12 @@ import { loadMunicipalities, findMunicipalityByCode } from "../lib/data.js";
 import { filterByScope, drawMunicipality, scopeLabel, scopeFromParams, scopeToQuery, rouletteNames } from "../lib/gacha.js";
 import { REGIONS, PREFECTURES, prefByName } from "../lib/regions.js";
 import { renderTileMap } from "../lib/japan-map.js";
+import { gachaControlState } from "../lib/gacha-ready.js";
 import { muniNote } from "../lib/muni-notes.js";
 import { getProvider, fetchStatus } from "../providers/index.js";
+import { productsEmptyState } from "../lib/municipality-products.js";
 import { toggleFavMunicipality, isFavMunicipality, pushGachaHistory } from "../lib/storage.js";
-import { productCard, loadingEl, msgEl } from "./product-card.js";
+import { productCard, loadingEl } from "./product-card.js";
 import { playGachaStart, playRattle, playLand } from "../lib/sound.js";
 import { PRODUCT_FETCH_LIMIT, splitProducts, moreLabel } from "../lib/product-paging.js";
 import { shareResult } from "../lib/share.js";
@@ -34,6 +36,9 @@ const els = {
   prefSelect: /** @type {HTMLSelectElement} */ (must("#scope-pref")),
   chips: must("#scope-chips"),
   count: must("#scope-count"),
+  loading: must("#scope-loading"),
+  error: must("#scope-error"),
+  retry: /** @type {HTMLButtonElement} */ (must("#scope-retry")),
   mapPreview: must("#scope-map"),
   run: /** @type {HTMLButtonElement} */ (must("#gacha-run")),
   stage: must("#gacha-stage"),
@@ -58,7 +63,11 @@ const els = {
   prBadge: must("#pr-badge"),
   productsNote: must("#products-note"),
   productsGrid: must("#products-grid"),
-  productsMore: /** @type {HTMLButtonElement} */ (must("#products-more-btn"))
+  productsMore: /** @type {HTMLButtonElement} */ (must("#products-more-btn")),
+  productsEmpty: must("#products-empty"),
+  productsEmptyTitle: must("#products-empty-title"),
+  productsEmptySub: must("#products-empty-sub"),
+  productsEmptyAgain: /** @type {HTMLButtonElement} */ (must("#products-empty-again"))
 };
 
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -98,6 +107,12 @@ let scope = { type: "all" };
 /** @type {Municipality | null} */
 let current = null;
 let spinning = false;
+/** 自治体データの準備状態(HTML描画直後は "loading") @type {import("../lib/gacha-ready.js").GachaDataState} */
+let dataState = "loading";
+/** 現在の範囲に含まれる自治体数(操作可否の判定に使う) */
+let poolSize = 0;
+/** 取得中フラグ(再試行の連打で同時に複数走らせない) */
+let loadingData = false;
 /** この結果を生んだ範囲(演出中にUIで範囲を変えても結果表示とURLは一致させる) @type {GachaScope} */
 let resultScopeState = { type: "all" };
 /** 返礼品取得の世代トークン(連続ガチャ時に古い応答でUIを上書きしない) */
@@ -108,20 +123,24 @@ let pendingRest = [];
 let confettiTimer = 0;
 let shareTimer = 0;
 
-init().catch((e) => {
-  console.error(e);
-  els.count.textContent = "データの読み込みに失敗しました。再読み込みしてください。";
-});
+// モジュールが評価された時点で【まずイベントを登録し】、そのあとにデータを取りに行く。
+// 逆順(await の後で登録)にすると、取得中の押下がフォームのネイティブ送信になり
+// ?scope-type=all へリロードされる(2026-09-10 の不具合)。
+setupUi();
+void loadData();
 
-async function init() {
+/** 同期セットアップ: 誤送信の封じ込み → 範囲UIの復元 → イベント登録。awaitを挟まない。 */
+function setupUi() {
+  // 最優先: submitのネイティブ送信を止める(データ取得の完了を待たない)
+  els.form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    void runGacha();
+  });
+
   fillSelects();
-  const params = new URLSearchParams(location.search);
-  scope = scopeFromParams(params);
+  scope = scopeFromParams(new URLSearchParams(location.search));
   syncScopeUi();
-
-  const { municipalities } = await loadMunicipalities();
-  all = municipalities;
-  updateCount();
+  refreshControls();
 
   // 範囲UIのイベント
   for (const r of els.typeRadios) r.addEventListener("change", onScopeUiChange);
@@ -136,10 +155,6 @@ async function init() {
     updateCount();
   });
 
-  els.form.addEventListener("submit", (e) => {
-    e.preventDefault();
-    void runGacha();
-  });
   els.productsMore.addEventListener("click", () => {
     if (pendingRest.length === 0) return;
     const frag = document.createDocumentFragment();
@@ -148,6 +163,9 @@ async function init() {
     pendingRest = [];
     els.productsMore.hidden = true;
   });
+
+  // 0件案内からの再ガチャは、既存の「同じ範囲でもう一回」導線をそのまま使う
+  els.productsEmptyAgain.addEventListener("click", () => els.btnAgain.click());
 
   els.btnAgain.addEventListener("click", () => {
     if (current) { scope = resultScopeState; syncScopeUi(); updateCount(); } // ラベル通り「同じ範囲」を保証
@@ -172,19 +190,54 @@ async function init() {
     if (r !== "shared") { clearTimeout(shareTimer); shareTimer = setTimeout(() => { els.shareDone.textContent = ""; }, 3000); }
   });
 
-  // 共有リンク(?code=)からの直接表示
-  const code = params.get("code");
-  if (code && /^\d{6}$/.test(code)) {
-    const m = await findMunicipalityByCode(code);
-    if (m) {
-      const pref = prefByName(m.prefecture);
-      if (pref) scope = { type: "prefecture", slug: pref.slug };
-      syncScopeUi();
-      updateCount();
-      resultScopeState = scope;
-      await showResult(m, { animate: false, recordHistory: false });
-    }
+  // 読み込み失敗時の再試行(ページ全体のリロードは不要)
+  els.retry.addEventListener("click", () => { void loadData(); });
+}
+
+/** 自治体データの取得。成否を dataState に反映し、UIの操作可否を必ず更新する。 */
+async function loadData() {
+  if (loadingData) return; // 再試行の連打による二重取得を防ぐ
+  loadingData = true;
+  setDataState("loading");
+  try {
+    const { municipalities } = await loadMunicipalities();
+    all = municipalities;
+    setDataState("ready");
+    updateCount();
+  } catch (e) {
+    console.error(e);
+    all = [];
+    setDataState("error");
+    updateCount();
+    return;
+  } finally {
+    loadingData = false;
   }
+  await restoreFromShareLink();
+}
+
+/** 共有リンク(?code=)からの直接表示。失敗しても通常のガチャは使えるままにする。 */
+async function restoreFromShareLink() {
+  const code = new URLSearchParams(location.search).get("code");
+  if (!(code && /^\d{6}$/.test(code))) return;
+  try {
+    const m = await findMunicipalityByCode(code);
+    if (!m) return;
+    const pref = prefByName(m.prefecture);
+    if (pref) scope = { type: "prefecture", slug: pref.slug };
+    syncScopeUi();
+    updateCount();
+    resultScopeState = scope;
+    await showResult(m, { animate: false, recordHistory: false });
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+/** @param {import("../lib/gacha-ready.js").GachaDataState} next */
+function setDataState(next) {
+  dataState = next;
+  refreshControls();
 }
 
 function fillSelects() {
@@ -215,6 +268,8 @@ function syncScopeUi() {
   for (const r of els.typeRadios) r.checked = r.value === scope.type;
   els.regionWrap.hidden = scope.type !== "region";
   els.prefWrap.hidden = scope.type !== "prefecture";
+  // 都道府県を選んでいるときに地方ボタンが並んでいると紛らわしいので隠す(範囲・抽選には影響しない)
+  els.chips.hidden = scope.type === "prefecture";
   if (scope.type === "region") els.regionSelect.value = scope.slug;
   if (scope.type === "prefecture") els.prefSelect.value = scope.slug;
   for (const b of els.chips.querySelectorAll("button")) {
@@ -233,16 +288,33 @@ function setScopeControlsDisabled(on) {
   for (const b of els.chips.querySelectorAll("button")) b.disabled = on;
 }
 
+/**
+ * 準備状態・演出中・対象件数から、操作可否と案内表示をまとめて反映する。
+ * 判定そのものは lib/gacha-ready.js の純関数に集約(状態遷移を回帰テストで固定するため)。
+ */
+function refreshControls() {
+  const ui = gachaControlState({ state: dataState, spinning, poolSize });
+  setScopeControlsDisabled(ui.scopeDisabled);
+  els.run.disabled = ui.runDisabled;
+  els.btnAgain.disabled = ui.againDisabled;
+  els.loading.hidden = !ui.loadingVisible;
+  els.error.hidden = !ui.errorVisible;
+}
+
 function updateCount() {
   const pool = filterByScope(all, scope);
-  els.count.textContent = `対象範囲: ${scopeLabel(scope)}(${pool.length}自治体)`;
+  poolSize = pool.length;
+  els.count.textContent = dataState === "ready"
+    ? `対象範囲: ${scopeLabel(scope)}(${pool.length}自治体)`
+    : `対象範囲: ${scopeLabel(scope)}`;
   const active = new Set(pool.map((m) => prefByName(m.prefecture)?.code ?? ""));
   renderTileMap(els.mapPreview, { activeCodes: active, prefNames: PREF_NAME_BY_CODE });
-  els.run.disabled = pool.length === 0;
+  refreshControls();
 }
 
 async function runGacha() {
-  if (spinning) return;
+  // 準備前(読み込み中・失敗)と演出中は入口で止める。ネイティブ送信はsubmitハンドラ側で封じている。
+  if (!gachaControlState({ state: dataState, spinning, poolSize }).canRun) return;
   const pool = filterByScope(all, scope);
   const winner = drawMunicipality(all, scope); // 演出前に当選を確定(等確率・ロジック変更なし)
   if (!winner) {
@@ -252,9 +324,7 @@ async function runGacha() {
   spinning = true;
   playGachaStart(); // SE: 開始の「カチッ」(タイミング・演出は不変更、音のみ)
   resultScopeState = scope; // この時点の範囲で確定(以後の表示・履歴・URLはこれを使う)
-  els.run.disabled = true;
-  els.btnAgain.disabled = true;
-  setScopeControlsDisabled(true);
+  refreshControls(); // 連打防止 + 範囲変更ロック(spinning=true を反映)
   try {
     els.result.hidden = true;
     els.products.hidden = true;
@@ -273,9 +343,7 @@ async function runGacha() {
     await showResult(winner, { animate: !reduceMotion, recordHistory: true });
   } finally {
     spinning = false;
-    els.run.disabled = false;
-    els.btnAgain.disabled = false;
-    setScopeControlsDisabled(false);
+    refreshControls();
   }
 }
 
@@ -389,13 +457,22 @@ async function loadProducts(m) {
   els.productsGrid.replaceChildren(loadingEl());
   pendingRest = [];
   els.productsMore.hidden = true;
+  els.productsEmpty.hidden = true;
   try {
     const [{ provider, mode }, status] = await Promise.all([getProvider(), fetchStatus()]);
-    // 1回のAPI呼び出しで最大12件取得し、初期6件+「さらに◯件」はクライアント側で出し分ける(再通信なし)
-    const products = await provider.searchByMunicipality({
+    // 1回のAPI呼び出しで最大12件取得し、初期6件+「さらに◯件」はクライアント側で出し分ける(再通信なし)。
+    // items と status(ok/empty/error)は同一requestの戻り値として一緒に受け取る。
+    const result = await provider.searchByMunicipalityDetailed({
       municipality: m.municipality, prefecture: m.prefecture, municipalityCode: m.municipalityCode, limit: PRODUCT_FETCH_LIMIT
     });
     if (seq !== loadSeq) return; // すでに次のガチャが始まっている
+    if (result.status !== "ok") {
+      // 楽天正常0件("empty")と通信・上流エラー("error")はここで文言を分ける
+      showProductsEmpty(result.status);
+      renderGenres([]);
+      return;
+    }
+    const products = result.items;
     const isMock = mode === "mock" || products.every((p) => p.isMock);
     els.prBadge.hidden = !(status.hasAffiliate && !isMock);
     els.productsNote.textContent = isMock
@@ -408,18 +485,38 @@ async function loadProducts(m) {
   } catch (e) {
     console.error(e);
     if (seq !== loadSeq) return;
-    els.productsGrid.replaceChildren(msgEl("返礼品情報の取得に失敗しました。時間をおいて再度お試しください。"));
+    showProductsEmpty("error");
   } finally {
     if (seq === loadSeq) els.productsGrid.setAttribute("aria-busy", "false");
   }
 }
 
+/**
+ * 返礼品0件(楽天正常応答) / 取得エラーの案内を表示する。
+ * 断定表現は使わず、既存の再ガチャ導線と /search/ CTA(同セクション内)へ進めるようにする。
+ * @param {"empty"|"error"} status
+ */
+function showProductsEmpty(status) {
+  const st = productsEmptyState(status);
+  els.productsEmptyTitle.textContent = st.title;
+  els.productsEmptySub.textContent = st.sub;
+  els.productsEmpty.dataset.kind = st.kind;
+  els.productsEmpty.hidden = false;
+  els.productsNote.textContent = "";
+  els.prBadge.hidden = true;
+  els.productsGrid.replaceChildren();
+  els.productsMore.hidden = true;
+  pendingRest = [];
+}
+
 /** @param {Product[]} products @param {Municipality} m */
 function renderProducts(products, m) {
+  void m;
   if (products.length === 0) {
-    els.productsGrid.replaceChildren(msgEl(`${m.municipality}の返礼品が見つかりませんでした。楽天ふるさと納税で直接検索してみてください。`));
+    showProductsEmpty("empty");
     return;
   }
+  els.productsEmpty.hidden = true;
   const frag = document.createDocumentFragment();
   const { first, rest } = splitProducts(products);
   for (const p of first) frag.append(productCard(p));

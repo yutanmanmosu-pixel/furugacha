@@ -125,10 +125,15 @@ function clearResult() {
 
 /** 予算ガチャへの金額引き継ぎを無効化する(表示・URL・sessionStorageのすべてから古い金額を外す) */
 function disableHandoff() {
+  // 画面側を先に確定させる。保存領域が使えない環境でもここまでは必ず完了する。
   handoffLimit = 0;
   els.ctaBudget.parentElement?.setAttribute("hidden", "");
   els.ctaBudget.href = "/budget-gacha/";
   els.ctaBudgetAmount.textContent = "";
+  // 保存済みの金額も消す。予算ガチャは ?budget= が無いとき sessionStorage の値を復元するため、
+  // 画面から消しただけでは、メニュー経由で /budget-gacha/ を開いたときに古い金額が生き返る。
+  // 消すのはこのキーだけ(他の保存データには触れない)。拒否される環境では黙って諦める。
+  try { sessionStorage.removeItem(HANDOFF_KEY); } catch { /* 利用不可・拒否環境は無視 */ }
 }
 
 /** @param {string} k @param {string} v */

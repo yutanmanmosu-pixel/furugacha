@@ -19,6 +19,21 @@ if (toggle instanceof HTMLElement && nav instanceof HTMLElement) {
   });
 }
 
+// ---------- 固定ヘッダーの実高さを CSS 変数へ ----------
+// 結果への自動スクロール(scrollIntoView)やページ内リンクの着地点が
+// sticky ヘッダーの下に潜り、結果ラベル・自治体名・控除額が読めなくなるのを防ぐ。
+// ヘッダー高さはスマホ/PC・ロゴ下タグの表示有無で変わるため、実測値を使う。
+const header = document.querySelector(".site-header");
+if (header instanceof HTMLElement) {
+  const applyHeaderHeight = () => {
+    const h = Math.round(header.getBoundingClientRect().height);
+    if (h > 0) document.documentElement.style.setProperty("--header-h", `${h}px`);
+  };
+  applyHeaderHeight();
+  if (typeof ResizeObserver === "function") new ResizeObserver(applyHeaderHeight).observe(header);
+  else window.addEventListener("resize", applyHeaderHeight);
+}
+
 for (const el of document.querySelectorAll("[data-year]")) {
   el.textContent = String(new Date().getFullYear());
 }

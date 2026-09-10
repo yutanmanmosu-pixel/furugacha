@@ -105,12 +105,25 @@ function init() {
   els.again.addEventListener("click", () => void run());
 }
 
+/** 表示済みの結果を消す(入力エラー時に古い組み合わせを今回の結果と誤解させないため) */
+function clearResult() {
+  els.result.hidden = true;
+  els.summary.textContent = "";
+  els.note.textContent = "";
+  els.countNote.hidden = true;
+  els.countNote.textContent = "";
+  els.prBadge.hidden = true;
+  els.grid.replaceChildren();
+}
+
 async function run() {
   if (busy) return; // Enter連打・多重実行防止
   const budget = parseBudget(els.input.value);
   if (budget == null) {
+    // 入力エラー時は前回の組み合わせを残さない(エラーと結果の同時表示を避ける / 2026-09-10)
     els.error.hidden = false;
     els.error.textContent = `予算は${BUDGET_MIN.toLocaleString("ja-JP")}円〜${BUDGET_MAX.toLocaleString("ja-JP")}円の範囲で数字のみ入力してください。`;
+    clearResult();
     els.input.focus();
     return;
   }
