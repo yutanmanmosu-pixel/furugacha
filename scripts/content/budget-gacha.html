@@ -45,6 +45,22 @@
       <p id="budget-note" class="note"></p>
       <div id="budget-grid" class="products-grid" aria-live="polite"></div>
       <p class="center" style="margin-top:22px"><button id="budget-again" type="button" class="btn btn--primary">🎰 同じ条件でもう一回</button></p>
+      <div id="budget-share" class="xshare" hidden>
+        <p class="xshare__row">
+          <a id="budget-share-x" class="btn btn--x btn--sm" href="https://x.com/intent/tweet" target="_blank" rel="noopener noreferrer" aria-disabled="false"><span class="xshare__logo" aria-hidden="true">𝕏</span>Xで共有</a>
+          <span id="budget-share-note" class="note xshare__note" role="status"></span>
+        </p>
+        <details id="budget-share-details" class="xshare__preview">
+          <summary>投稿文を確認・コピー</summary>
+          <label class="visually-hidden" for="budget-share-text">Xへの投稿文</label>
+          <textarea id="budget-share-text" class="xshare__text" rows="9" readonly></textarea>
+          <p class="xshare__actions">
+            <button id="budget-share-copy" type="button" class="btn btn--ghost btn--sm">投稿文をコピー</button>
+            <span id="budget-share-copied" class="note" role="status"></span>
+          </p>
+          <p class="note xshare__hint">Xの投稿画面が開くだけです。投稿するかどうかはご自身で確認してから決めてください(ふるガチャが自動で投稿することはありません)。</p>
+        </details>
+      </div>
       <p class="search-fallback-cta"><span class="search-fallback-cta__lead">やっぱり普通に探したい方は</span><a class="search-fallback-cta__link" href="/search/">返礼品をキーワードから探す ›</a></p>
     </section>
   </div>

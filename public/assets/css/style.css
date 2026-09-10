@@ -262,7 +262,7 @@ ul, ol { padding-left: 1.4em; margin: 0 0 1em; }
 .scope-tabs label:has(input:disabled) { opacity: .6; cursor: not-allowed; }
 .scope-chips button.is-active { background: var(--green); border-color: var(--green); color: #fff; }
 .scope-bottom { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center; margin-top: 12px; }
-.scope-map-mini { width: 168px; justify-self: end; }
+.scope-map-mini { width: 190px; justify-self: end; }
 @media (max-width: 640px) {
   .scope-bottom { grid-template-columns: 1fr; }
   .scope-map-mini { display: none; }
@@ -279,23 +279,18 @@ ul, ol { padding-left: 1.4em; margin: 0 0 1em; }
 .scope-error__msg { margin: 0 0 8px; font-size: .85rem; font-weight: 700; color: #8C2318; }
 .scope-note__line { display: block; }     /* 意味の切れ目で3行に分ける */
 .scope-run { margin-top: 14px; text-align: center; }
-/* 日本地図(緯度経度ベースの簡易シルエット。地方ごとに淡く色分けし、対象地方・対象県を強調) */
+/* 日本地図(長方形・L字を組み合わせた都道府県別の簡略地図。2026-09-11に円の重ね描きから変更)
+   ・通常の県は淡い緑の単色(色数を増やさない)
+   ・県どうしは細い白線で分ける(背景色に依存せず、隣り合う県の境目が必ず見える)
+   ・対象/当選した県だけをオレンジにし、最前面レイヤーへ回して小さい県でも隣県に隠れないようにする */
 .jmap { width: 100%; display: block; }
-.jmap__coast circle { fill: #C6D2C0; }   /* 海岸線(地方色の一回り外側) */
-.jmap__inset { fill: none; stroke: #DBD2BB; stroke-width: 1.2; stroke-dasharray: 5 3; }
-.jmap__pref { fill: #E3EADB; }
-.jmap__region--hokkaido .jmap__pref { fill: #D3E1E9; }
-.jmap__region--tohoku   .jmap__pref { fill: #DCE9D3; }
-.jmap__region--kanto    .jmap__pref { fill: #EFE2C4; }
-.jmap__region--chubu    .jmap__pref { fill: #D6E4DC; }
-.jmap__region--kinki    .jmap__pref { fill: #E9DDC8; }
-.jmap__region--chugoku  .jmap__pref { fill: #DEEAD2; }
-.jmap__region--shikoku  .jmap__pref { fill: #E5E1C8; }
-.jmap__region--kyushu   .jmap__pref { fill: #D4E2E8; }
-.jmap__region--okinawa  .jmap__pref { fill: #E0DAC5; }
-/* 当選(対象)地方は暖色で面ごと持ち上げ、対象の県はさらに濃いオレンジで最前面に示す */
-.jmap__region.is-active .jmap__pref { fill: #F6D2A8; }
-.jmap__top .jmap__pref { fill: var(--orange); }
+.jmap__pref {
+  fill: #C6DCB0;
+  stroke: #fff; stroke-width: 1.8; stroke-linejoin: round;
+}
+/* 当選県は塗りに加えて濃いオレンジの縁を持たせる。大阪・香川のような小さい県でも
+   縁のぶん面積が増え、淡い緑の中で確実に目に留まる。 */
+.jmap__pref.is-active { fill: var(--orange); stroke: var(--orange-deep); stroke-width: 2.6; }
 
 /* ---------- gacha stage ---------- */
 .gacha-stage { text-align: center; padding: 28px 0 8px; }
@@ -333,8 +328,10 @@ ul, ol { padding-left: 1.4em; margin: 0 0 1em; }
 .result-card__scope { font-size: .8rem; color: var(--ink-soft); margin-left: .8em; }
 .result-name { font-size: clamp(1.6rem, 5vw, 2.4rem); margin: 0 0 .3em; }
 .result-name .pref { display: block; font-size: .55em; color: var(--ink-soft); font-weight: 700; }
-.result-grid { display: grid; grid-template-columns: 1fr 220px; gap: 20px; align-items: start; }
-@media (max-width: 640px) { .result-grid { grid-template-columns: 1fr; } .result-map { max-width: 220px; margin: 0 auto; } }
+.result-grid { display: grid; grid-template-columns: 1fr 290px; gap: 20px; align-items: start; }
+/* 狭幅では1カラムになり、地図は本文・ボタンの【下】へ回る(見出しやCTAを押し下げない)。
+   小さい県のハイライトも見つけられるよう、220pxより少し大きく取る。 */
+@media (max-width: 640px) { .result-grid { grid-template-columns: 1fr; } .result-map { max-width: min(300px, 100%); margin: 14px auto 0; } }
 .result-genres-wrap { margin: 0 0 1em; }
 .result-genres-wrap .label { font-size: .8rem; color: var(--ink-soft); font-weight: 700; }
 .result-genres { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; padding: 0; margin: .3em 0 0; }
@@ -347,6 +344,36 @@ ul, ol { padding-left: 1.4em; margin: 0 0 1em; }
 .result-cta { margin-top: 16px; }
 @media (max-width: 640px) { .result-cta { margin-top: 22px; } }
 .result-positive { font-size: .8rem; color: var(--ink-soft); margin-top: 1em; }
+
+/* ---------- Xで共有(自治体ガチャ・予算ガチャ・共有結果ページ) ----------
+   ・投稿はあらかじめURLを入れた通常のリンクで開く(ポップアップブロック回避)
+   ・押した時点では何も投稿されない。折りたたみで投稿文を確認・コピーできる */
+.xshare { margin-top: 14px; }
+.xshare[hidden] { display: none; }
+.xshare__row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 .4em; }
+.btn--x { background: #15181C; color: #fff; border: 2px solid #15181C; }
+.btn--x:hover { background: #000; color: #fff; border-color: #000; }
+.btn--x.is-disabled { opacity: .5; cursor: not-allowed; pointer-events: none; }
+.xshare__logo { font-weight: 700; margin-right: .45em; font-size: 1.05em; line-height: 1; }
+.xshare__note { color: var(--ink-soft); }
+.xshare__preview { font-size: .85rem; }
+.xshare__preview > summary { cursor: pointer; color: var(--green-deep); font-weight: 700; }
+.xshare__text {
+  width: 100%; margin-top: 8px; padding: .7em .8em; box-sizing: border-box;
+  font-family: inherit; font-size: .85rem; line-height: 1.6; color: var(--ink);
+  background: #fff; border: 2px solid var(--line); border-radius: 12px; resize: vertical;
+}
+.xshare__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: .5em 0 .3em; }
+.xshare__hint { margin: 0; }
+
+/* ---------- 共有結果ページ ---------- */
+.share-fallback { max-width: 640px; margin: 0 auto; text-align: center; }
+.share-fallback .section-title { margin-bottom: .6em; }
+.share-summary { max-width: 720px; margin: 18px auto 0; text-align: center; }
+.share-summary .budget-summary { margin-bottom: .4em; }
+.share-cta { margin-top: 18px; }
+.share-cta .btn { display: flex; width: min(100%, 430px); margin-inline: auto; }
+.share-retry { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
 
 /* ---------- products ---------- */
 .products-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }

@@ -54,8 +54,11 @@ els.ctaBudget.addEventListener("click", () => {
 function run() {
   const salary = parseSalaryMan(els.salary.value);
   if (salary == null) {
+    // 入力エラー時は前回の結果を残さない。残すと「エラーなのに金額が出ている」状態になり、
+    // 古い金額を今回の試算と誤解させ、そのまま予算ガチャへ引き継げてしまう(2026-09-10)。
     els.error.hidden = false;
     els.error.textContent = "年収は1〜100,000(万円)の範囲で数字のみ入力してください。";
+    clearResult();
     els.salary.focus();
     return;
   }
@@ -84,7 +87,7 @@ function run() {
   if (r.limit <= 0) {
     els.amount.textContent = "—";
     els.zeroNote.hidden = false;
-    els.ctaBudget.parentElement?.setAttribute("hidden", "");
+    disableHandoff(); // 控除額が出ないケースで、前回の金額のCTAを残さない
   } else {
     els.amount.textContent = `約${r.limit.toLocaleString("ja-JP")}円`;
     els.zeroNote.hidden = true;
@@ -108,6 +111,29 @@ function run() {
     return li;
   }));
   els.result.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/** 表示済みの結果を消す(入力エラー時に古い結果を今回の結果と誤解させないため) */
+function clearResult() {
+  els.result.hidden = true;
+  els.amount.textContent = "—";
+  els.zeroNote.hidden = true;
+  els.breakdown.replaceChildren();
+  els.assumptions.replaceChildren();
+  disableHandoff();
+}
+
+/** 予算ガチャへの金額引き継ぎを無効化する(表示・URL・sessionStorageのすべてから古い金額を外す) */
+function disableHandoff() {
+  // 画面側を先に確定させる。保存領域が使えない環境でもここまでは必ず完了する。
+  handoffLimit = 0;
+  els.ctaBudget.parentElement?.setAttribute("hidden", "");
+  els.ctaBudget.href = "/budget-gacha/";
+  els.ctaBudgetAmount.textContent = "";
+  // 保存済みの金額も消す。予算ガチャは ?budget= が無いとき sessionStorage の値を復元するため、
+  // 画面から消しただけでは、メニュー経由で /budget-gacha/ を開いたときに古い金額が生き返る。
+  // 消すのはこのキーだけ(他の保存データには触れない)。拒否される環境では黙って諦める。
+  try { sessionStorage.removeItem(HANDOFF_KEY); } catch { /* 利用不可・拒否環境は無視 */ }
 }
 
 /** @param {string} k @param {string} v */

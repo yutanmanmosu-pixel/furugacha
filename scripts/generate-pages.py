@@ -223,6 +223,14 @@ PAGES: list[dict] = [
     dict(path="calculator", frag="calculator.html", title="控除上限額シミュレーター",
          desc="年収と家族構成を入れるだけで、ふるさと納税の控除上限額の目安を無料で試算。結果はそのまま予算おまかせガチャへ引き継げます。",
          scripts=["/assets/js/pages/calculator.js"], ptype="page"),
+    # 共有結果ページ: URLに載った抽選結果を復元して表示する。検索結果には出さない
+    # (個別の共有結果に検索需要は無く、大量の類似URLをsitemapに積む意味も無いため noindex)。
+    dict(path="share/gacha", frag="share-gacha.html", title="共有された自治体ガチャの結果",
+         desc="ふるガチャの自治体ガチャで出た寄附先候補の共有ページです。",
+         scripts=["/assets/js/pages/share-gacha.js"], ptype="page", noindex=True),
+    dict(path="share/budget", frag="share-budget.html", title="共有された予算おまかせガチャの結果",
+         desc="ふるガチャの予算おまかせガチャで出た返礼品の組み合わせの共有ページです。",
+         scripts=["/assets/js/pages/share-budget.js"], ptype="page", noindex=True),
     dict(path="favorites", frag="favorites.html", title="お気に入り",
          desc="ガチャで出会った自治体と返礼品のお気に入り一覧。データはこの端末の中だけに保存され、ログインは不要です。",
          scripts=["/assets/js/pages/favorites.js"], ptype="page", noindex=True),

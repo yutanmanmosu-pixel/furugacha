@@ -33,7 +33,14 @@ const dom = installDom({
   "#budget-pr-badge": { tag: "span", hidden: true },
   "#budget-note": { tag: "p" },
   "#budget-grid": { tag: "div" },
-  "#budget-again": { tag: "button" }
+  "#budget-again": { tag: "button" },
+  "#budget-share": { tag: "div", hidden: true },
+  "#budget-share-x": { tag: "a" },
+  "#budget-share-text": { tag: "textarea", value: "" },
+  "#budget-share-copy": { tag: "button" },
+  "#budget-share-copied": { tag: "span" },
+  "#budget-share-note": { tag: "span" },
+  "#budget-share-details": { tag: "details", open: false }
 });
 
 await import("../public/assets/js/pages/budget.js");
@@ -96,4 +103,16 @@ test("正常 → 無効 → 正常 を繰り返しても、エラーと結果が
     seen.push(s.errorShown ? "error" : "result");
   }
   assert.deepEqual(seen, ["result", "error", "result", "error", "result"]);
+});
+
+test("サンプル(モック)表示中は、Xでの共有を理由つきで無効にする", async () => {
+  await submit("50000");
+  // このテストは /api/status が無い環境 = モック動作。実在しない商品を共有させない。
+  const root = els["#budget-share"];
+  const link = els["#budget-share-x"];
+  assert.equal(root.hidden, false, "共有できない理由が画面に出ていない");
+  assert.equal(link.getAttribute("aria-disabled"), "true", "モックなのに共有リンクが有効");
+  assert.equal(link.getAttribute("href"), null, "モックなのに共有リンクを押せてしまう");
+  assert.match(els["#budget-share-note"].textContent, /サンプル/, "無効の理由が分からない");
+  assert.equal(els["#budget-share-text"].value, "", "投稿文が作られている");
 });

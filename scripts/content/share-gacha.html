@@ -1,0 +1,37 @@
+<section class="section">
+  <div class="container">
+    <p id="share-loading" class="loading center">共有された結果を読み込んでいます…</p>
+
+    <div id="share-error" class="card share-fallback" hidden role="alert">
+      <p id="share-error-title" class="section-title share-fallback__title">結果を表示できませんでした</p>
+      <p id="share-error-msg"></p>
+      <p><a class="btn btn--primary btn--xl" href="/gacha/">🎰 自治体ガチャをまわす</a></p>
+    </div>
+
+    <article id="share-main" class="result-card card" hidden aria-label="共有された自治体ガチャの結果">
+      <p><span class="result-card__kicker">🎉 共有された寄附先候補</span><span id="share-scope" class="result-card__scope"></span></p>
+      <div class="result-grid">
+        <div>
+          <h1 class="result-name"><span id="share-pref" class="pref"></span><span id="share-muni"></span></h1>
+          <p id="share-note"></p>
+          <p id="share-date" class="note"></p>
+          <p class="result-cta"><a id="share-rakuten" class="btn btn--green" href="https://event.rakuten.co.jp/furusato/" target="_blank" rel="noopener noreferrer"><span class="nobr">楽天ふるさと納税で</span><span class="nobr">この自治体を見る ›</span></a></p>
+          <p class="share-cta"><a class="btn btn--primary btn--xl" href="/gacha/">🎰 <span class="nobr">自分も</span><span class="nobr">自治体ガチャをまわす</span></a></p>
+          <p class="result-positive">これは「今回の寄附先候補」です。寄附するかどうかは、返礼品と自治体の情報を確かめてからご自身で決めてください。</p>
+        </div>
+        <div id="share-map" class="result-map" aria-hidden="true"></div>
+      </div>
+    </article>
+
+    <section id="share-products" class="section" hidden aria-labelledby="share-products-title" style="padding-bottom:0">
+      <div class="products-head">
+        <h2 id="share-products-title"><span id="share-products-name"></span>の<span class="nobr">現在の返礼品候補</span></h2>
+        <span id="share-pr-badge" class="pr-badge" hidden>PR</span>
+      </div>
+      <p class="note">※共有された時点の一覧ではありません。いま楽天ふるさと納税で見つかる返礼品を表示しています。寄附額・在庫は変動します。</p>
+      <p id="share-products-note" class="note"></p>
+      <p id="share-products-empty" class="note" hidden>この自治体の返礼品はいま取得できませんでした。楽天ふるさと納税でお確かめください。</p>
+      <div id="share-products-grid" class="products-grid" aria-live="polite"></div>
+    </section>
+  </div>
+</section>

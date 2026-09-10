@@ -9,6 +9,9 @@ import { getProvider, fetchStatus } from "../providers/index.js";
 import { yen } from "../lib/format.js";
 import { pushBudgetHistory } from "../lib/storage.js";
 import { productCard } from "./product-card.js";
+import { budgetShareQuery, shareStamp, isValidItemCode, SHARE_MAX_ITEMS } from "../lib/share-state.js";
+import { budgetTweet, xIntentUrl } from "../lib/share-text.js";
+import { bindXShare } from "./x-share.js";
 
 const HANDOFF_KEY = "furugacha:budget:handoff:v1";
 
@@ -34,8 +37,21 @@ const els = {
   prBadge: must("#budget-pr-badge"),
   note: must("#budget-note"),
   grid: must("#budget-grid"),
-  again: /** @type {HTMLButtonElement} */ (must("#budget-again"))
+  again: /** @type {HTMLButtonElement} */ (must("#budget-again")),
+  shareRoot: must("#budget-share"),
+  shareLink: /** @type {HTMLAnchorElement} */ (must("#budget-share-x")),
+  shareText: /** @type {HTMLTextAreaElement} */ (must("#budget-share-text")),
+  shareCopy: /** @type {HTMLButtonElement} */ (must("#budget-share-copy")),
+  shareCopied: must("#budget-share-copied"),
+  shareNote: must("#budget-share-note"),
+  shareDetails: /** @type {HTMLDetailsElement} */ (must("#budget-share-details"))
 };
+
+/** Xで共有ウィジェット(投稿はユーザー本人がXの画面で確定する) */
+const xShare = bindXShare({
+  root: els.shareRoot, link: els.shareLink, textarea: els.shareText,
+  copyBtn: els.shareCopy, copied: els.shareCopied, note: els.shareNote, details: els.shareDetails
+});
 
 /** @type {"random"|"food"|"life"|"travel"} */
 let category = "random";
@@ -105,6 +121,39 @@ function init() {
   els.again.addEventListener("click", () => void run());
 }
 
+/**
+ * 表示中の組み合わせから、共有結果ページURLとXの投稿文を組み立てる。
+ * ・サンプル(モック)商品は実商品として公開共有しないので、理由を出して無効にする。
+ * ・共有はおまけの導線なので、失敗しても予算ガチャ本体は止めない。
+ * @param {{budget:number, category:string, set:{items:import("../lib/types.js").Product[], total:number, remaining:number}, isMock:boolean}} r
+ */
+function updateXShare(r) {
+  try {
+    if (r.isMock || r.set.items.some((p) => p.isMock)) {
+      xShare.disable("いまはサンプル表示のため、Xでの共有は使えません(実在の返礼品ではないため)。");
+      return;
+    }
+    const items = r.set.items.slice(0, SHARE_MAX_ITEMS);
+    if (!items.every((p) => isValidItemCode(p.id))) {
+      xShare.disable("この組み合わせは共有用の情報が揃わないため、Xでの共有は使えません。");
+      return;
+    }
+    const shareUrl = `${location.origin}/share/budget/${budgetShareQuery({
+      budget: r.budget, category: r.category,
+      items: items.map((p) => ({ code: p.id, amount: p.amount })),
+      stamp: shareStamp()
+    })}`;
+    const text = budgetTweet({
+      budget: r.budget, total: r.set.total, remaining: r.set.remaining,
+      items: items.map((p) => ({ title: p.title })), url: shareUrl
+    });
+    xShare.show({ text, intentUrl: xIntentUrl(text), shareUrl });
+  } catch (e) {
+    console.error(e);
+    xShare.disable("共有リンクを作れませんでした。もう一度ガチャを回してお試しください。");
+  }
+}
+
 /** 表示済みの結果を消す(入力エラー時に古い組み合わせを今回の結果と誤解させないため) */
 function clearResult() {
   els.result.hidden = true;
@@ -114,6 +163,7 @@ function clearResult() {
   els.countNote.textContent = "";
   els.prBadge.hidden = true;
   els.grid.replaceChildren();
+  xShare.hide(); // 古い組み合わせの共有リンク・投稿文を残さない
 }
 
 async function run() {
@@ -137,6 +187,7 @@ async function run() {
   els.summary.textContent = "組み合わせを考えています…";
   els.grid.setAttribute("aria-busy", "true");
   els.grid.replaceChildren();
+  xShare.hide(); // 抽選中に前回の結果の共有リンクを押せないようにする
 
   try {
     const [{ provider, mode }, status] = await Promise.all([getProvider(), fetchStatus()]);
@@ -154,6 +205,7 @@ async function run() {
       els.summary.textContent = "この条件では組み合わせを作れませんでした。予算を増やすか、カテゴリを変えてお試しください。";
       els.note.textContent = "";
       els.prBadge.hidden = true;
+      xShare.hide(); // 共有できる結果が無い
       return;
     }
 
@@ -177,6 +229,8 @@ async function run() {
     for (const p of set.items) frag.append(productCard(p));
     els.grid.replaceChildren(frag);
 
+    updateXShare({ budget, category, set, isMock });
+
     pushBudgetHistory({
       budget, total: set.total, count: set.items.length,
       categoryLabel: categoryById(category)?.label ?? category
@@ -185,6 +239,7 @@ async function run() {
   } catch (e) {
     console.error(e);
     els.summary.textContent = "取得に失敗しました。時間をおいて再度お試しください。";
+    xShare.hide();
   } finally {
     busy = false;
     els.grid.setAttribute("aria-busy", "false");

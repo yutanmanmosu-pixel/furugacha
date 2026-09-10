@@ -1,0 +1,41 @@
+<section class="section">
+  <div class="container">
+    <p id="share-loading" class="loading center">共有された結果を読み込んでいます…</p>
+
+    <div id="share-error" class="card share-fallback" hidden role="alert">
+      <p id="share-error-title" class="section-title share-fallback__title">結果を表示できませんでした</p>
+      <p id="share-error-msg"></p>
+      <p><a class="btn btn--primary btn--xl" href="/budget-gacha/">🎰 <span class="nobr">予算おまかせ</span><span class="nobr">ガチャをまわす</span></a></p>
+    </div>
+
+    <div id="share-main" hidden>
+      <div class="center">
+        <p class="section-kicker">共有された結果</p>
+        <h1 class="section-title">予算<span id="share-budget" class="deco"></span>の<span class="deco nobr">おまかせガチャ</span></h1>
+      </div>
+
+      <div class="card share-summary">
+        <p id="share-summary" class="budget-summary"></p>
+        <p id="share-meta" class="note"></p>
+        <p id="share-date" class="note"></p>
+      </div>
+
+      <section class="section" aria-labelledby="share-items-title" style="padding-bottom:0">
+        <div class="products-head">
+          <h2 id="share-items-title">選ばれた返礼品</h2>
+          <span id="share-pr-badge" class="pr-badge" hidden>PR</span>
+        </div>
+        <p id="share-items-note" class="note"></p>
+        <p id="share-items-missing" class="note" hidden></p>
+        <div id="share-items-grid" class="products-grid" aria-live="polite"></div>
+        <p id="share-items-error" class="share-retry" hidden>
+          <span id="share-items-error-msg" class="note"></span>
+          <button id="share-items-retry" type="button" class="btn btn--ghost btn--sm">🔄 もう一度読み込む</button>
+        </p>
+      </section>
+
+      <p class="share-cta center"><a id="share-again" class="btn btn--primary btn--xl" href="/budget-gacha/">🎰 <span class="nobr">同じ予算で</span><span class="nobr">自分もガチャをまわす</span></a></p>
+      <p class="note center">※ボタンからは同じ予算で<strong>新しく抽選</strong>します。上の組み合わせとは別の結果になります。</p>
+    </div>
+  </div>
+</section>

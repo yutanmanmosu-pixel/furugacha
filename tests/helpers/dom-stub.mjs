@@ -37,6 +37,11 @@ export class StubElement {
   get hidden() { return "hidden" in this.attrs; }
   set hidden(v) { if (v) this.attrs.hidden = ""; else delete this.attrs.hidden; }
 
+  // 実DOMのaタグと同じく href はプロパティと属性が連動する
+  // (removeAttribute("href") でリンクが無効になることをテストで再現するため)
+  get href() { return this.attrs.href ?? ""; }
+  set href(v) { this.attrs.href = String(v); }
+
   setAttribute(k, v) { if (k === "hidden") { this.hidden = true; return; } this.attrs[k] = String(v); }
   removeAttribute(k) { if (k === "hidden") { this.hidden = false; return; } delete this.attrs[k]; }
   getAttribute(k) { return k === "hidden" ? (this.hidden ? "" : null) : (this.attrs[k] ?? null); }
@@ -163,6 +168,8 @@ export function installDom(spec) {
   globalThis.document = document;
   globalThis.sessionStorage = storage;
   globalThis.localStorage = storage;
-  globalThis.location = { search: "", pathname: "/", href: "http://localhost/" };
+  globalThis.location = {
+    search: "", pathname: "/", origin: "https://furugacha.jp", href: "https://furugacha.jp/"
+  };
   return { el: byselector, all: listBySelector, document, storage };
 }

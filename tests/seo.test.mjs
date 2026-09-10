@@ -20,7 +20,13 @@ function htmlPages(dir) {
 }
 
 const pages = htmlPages("public");
-const NOINDEX_PATHS = new Set(["public/favorites/index.html", "public/history/index.html"]);
+// noindexにする意図があるページ:
+//   favorites / history … 端末内データの個人的な一覧で検索需要が無い
+//   share/gacha / share/budget … 共有された1件の結果。類似URLを大量にsitemapへ積まない
+const NOINDEX_PATHS = new Set([
+  "public/favorites/index.html", "public/history/index.html",
+  "public/share/gacha/index.html", "public/share/budget/index.html"
+]);
 const norm = (/** @type {string} */ p) => p.split("\\").join("/");
 
 test("SEO: 全indexableページで title / meta description / canonical / H1 が各1つ", () => {
@@ -95,6 +101,7 @@ test("SEO: sitemap.xml に新規ページを含み、noindexページを含ま�
   const xml = readFileSync("public/sitemap.xml", "utf8");
   assert.ok(xml.includes("<loc>https://furugacha.jp/guide/furusato-random/</loc>"), "sitemapに新規ページがない");
   assert.ok(!xml.includes("/favorites/") && !xml.includes("/history/"), "noindexページがsitemapに混入");
+  assert.ok(!xml.includes("/share/"), "共有結果ページがsitemapに混入(大量の類似URLを積まない)");
   const locs = (xml.match(/<loc>/g) ?? []).length;
   assert.equal(locs, pages.length - NOINDEX_PATHS.size, `sitemapのURL数不一致: ${locs}`);
 });

@@ -161,7 +161,14 @@ test("初期化順序: 取得が終わる前でも submit はキャンセルさ�
     "#products-empty": { tag: "div", hidden: true },
     "#products-empty-title": { tag: "p" },
     "#products-empty-sub": { tag: "p" },
-    "#products-empty-again": { tag: "button" }
+    "#products-empty-again": { tag: "button" },
+    "#gacha-share": { tag: "div", hidden: true },
+    "#gacha-share-x": { tag: "a" },
+    "#gacha-share-text": { tag: "textarea", value: "" },
+    "#gacha-share-copy": { tag: "button" },
+    "#gacha-share-copied": { tag: "span" },
+    "#gacha-share-note": { tag: "span" },
+    "#gacha-share-details": { tag: "details", open: false }
   });
   // 地方チップ(10個)を実DOMと同じく #scope-chips の子として置く
   for (const slug of ["all", "hokkaido", "tohoku", "kanto", "chubu", "kinki", "chugoku", "shikoku", "kyushu", "okinawa"]) {
