@@ -153,6 +153,7 @@ export function installDom(spec) {
     querySelectorAll: (sel) => listBySelector[sel] ?? [],
     createElement: (tag) => new StubElement(tag),
     createElementNS: (_ns, tag) => new StubElement(tag),
+    createTextNode: (text) => { const t = new StubElement("#text"); t._text = String(text); return t; },
     createDocumentFragment: () => new StubFragment(),
     addEventListener() {},
     documentElement: new StubElement("html")

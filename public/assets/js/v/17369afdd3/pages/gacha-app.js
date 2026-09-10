@@ -6,6 +6,7 @@ import { loadMunicipalities, findMunicipalityByCode } from "../lib/data.js";
 import { filterByScope, drawMunicipality, scopeLabel, scopeFromParams, scopeToQuery, rouletteNames } from "../lib/gacha.js";
 import { REGIONS, PREFECTURES, prefByName } from "../lib/regions.js";
 import { renderTileMap } from "../lib/japan-map.js";
+import { gachaControlState } from "../lib/gacha-ready.js";
 import { muniNote } from "../lib/muni-notes.js";
 import { getProvider, fetchStatus } from "../providers/index.js";
 import { productsEmptyState } from "../lib/municipality-products.js";
@@ -13,7 +14,9 @@ import { toggleFavMunicipality, isFavMunicipality, pushGachaHistory } from "../l
 import { productCard, loadingEl } from "./product-card.js";
 import { playGachaStart, playRattle, playLand } from "../lib/sound.js";
 import { PRODUCT_FETCH_LIMIT, splitProducts, moreLabel } from "../lib/product-paging.js";
-import { shareResult } from "../lib/share.js";
+import { copyShareLink, shareUrl } from "../lib/share.js";
+import { gachaTweet, xIntentUrl } from "../lib/share-text.js";
+import { bindXShare } from "./x-share.js";
 
 /** @typedef {import("../lib/types.js").Municipality} Municipality */
 /** @typedef {import("../lib/types.js").GachaScope} GachaScope */
@@ -35,6 +38,9 @@ const els = {
   prefSelect: /** @type {HTMLSelectElement} */ (must("#scope-pref")),
   chips: must("#scope-chips"),
   count: must("#scope-count"),
+  loading: must("#scope-loading"),
+  error: must("#scope-error"),
+  retry: /** @type {HTMLButtonElement} */ (must("#scope-retry")),
   mapPreview: must("#scope-map"),
   run: /** @type {HTMLButtonElement} */ (must("#gacha-run")),
   stage: must("#gacha-stage"),
@@ -52,7 +58,6 @@ const els = {
   btnChange: /** @type {HTMLButtonElement} */ (must("#btn-change")),
   btnFav: /** @type {HTMLButtonElement} */ (must("#btn-fav-muni")),
   btnShare: /** @type {HTMLButtonElement} */ (must("#btn-share")),
-  shareDone: must("#share-done"),
   rakutenLink: /** @type {HTMLAnchorElement} */ (must("#result-rakuten-link")),
   products: must("#products"),
   productsTitle: must("#products-title-name"),
@@ -63,8 +68,21 @@ const els = {
   productsEmpty: must("#products-empty"),
   productsEmptyTitle: must("#products-empty-title"),
   productsEmptySub: must("#products-empty-sub"),
-  productsEmptyAgain: /** @type {HTMLButtonElement} */ (must("#products-empty-again"))
+  productsEmptyAgain: /** @type {HTMLButtonElement} */ (must("#products-empty-again")),
+  shareRoot: must("#gacha-share"),
+  shareLink: /** @type {HTMLAnchorElement} */ (must("#gacha-share-x")),
+  shareText: /** @type {HTMLTextAreaElement} */ (must("#gacha-share-text")),
+  shareCopy: /** @type {HTMLButtonElement} */ (must("#gacha-share-copy")),
+  shareCopied: must("#gacha-share-copied"),
+  shareNote: must("#gacha-share-note"),
+  shareDetails: /** @type {HTMLDetailsElement} */ (must("#gacha-share-details"))
 };
+
+/** Xで共有ウィジェット(投稿はユーザー本人がXの画面で確定する) */
+const xShare = bindXShare({
+  root: els.shareRoot, link: els.shareLink, textarea: els.shareText,
+  copyBtn: els.shareCopy, copied: els.shareCopied, note: els.shareNote, details: els.shareDetails
+});
 
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -103,6 +121,12 @@ let scope = { type: "all" };
 /** @type {Municipality | null} */
 let current = null;
 let spinning = false;
+/** 自治体データの準備状態(HTML描画直後は "loading") @type {import("../lib/gacha-ready.js").GachaDataState} */
+let dataState = "loading";
+/** 現在の範囲に含まれる自治体数(操作可否の判定に使う) */
+let poolSize = 0;
+/** 取得中フラグ(再試行の連打で同時に複数走らせない) */
+let loadingData = false;
 /** この結果を生んだ範囲(演出中にUIで範囲を変えても結果表示とURLは一致させる) @type {GachaScope} */
 let resultScopeState = { type: "all" };
 /** 返礼品取得の世代トークン(連続ガチャ時に古い応答でUIを上書きしない) */
@@ -113,20 +137,24 @@ let pendingRest = [];
 let confettiTimer = 0;
 let shareTimer = 0;
 
-init().catch((e) => {
-  console.error(e);
-  els.count.textContent = "データの読み込みに失敗しました。再読み込みしてください。";
-});
+// モジュールが評価された時点で【まずイベントを登録し】、そのあとにデータを取りに行く。
+// 逆順(await の後で登録)にすると、取得中の押下がフォームのネイティブ送信になり
+// ?scope-type=all へリロードされる(2026-09-10 の不具合)。
+setupUi();
+void loadData();
 
-async function init() {
+/** 同期セットアップ: 誤送信の封じ込み → 範囲UIの復元 → イベント登録。awaitを挟まない。 */
+function setupUi() {
+  // 最優先: submitのネイティブ送信を止める(データ取得の完了を待たない)
+  els.form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    void runGacha();
+  });
+
   fillSelects();
-  const params = new URLSearchParams(location.search);
-  scope = scopeFromParams(params);
+  scope = scopeFromParams(new URLSearchParams(location.search));
   syncScopeUi();
-
-  const { municipalities } = await loadMunicipalities();
-  all = municipalities;
-  updateCount();
+  refreshControls();
 
   // 範囲UIのイベント
   for (const r of els.typeRadios) r.addEventListener("change", onScopeUiChange);
@@ -141,10 +169,6 @@ async function init() {
     updateCount();
   });
 
-  els.form.addEventListener("submit", (e) => {
-    e.preventDefault();
-    void runGacha();
-  });
   els.productsMore.addEventListener("click", () => {
     if (pendingRest.length === 0) return;
     const frag = document.createDocumentFragment();
@@ -175,24 +199,62 @@ async function init() {
   });
   els.btnShare.addEventListener("click", async () => {
     if (!current) return;
-    const r = await shareResult(current);
-    els.shareDone.textContent = r === "copied" ? "リンクをコピーしました" : r === "failed" ? "共有できませんでした" : "";
-    if (r !== "shared") { clearTimeout(shareTimer); shareTimer = setTimeout(() => { els.shareDone.textContent = ""; }, 3000); }
+    const r = await copyShareLink(current, resultScopeState);
+    els.shareCopied.textContent = r === "copied"
+      ? "結果ページのリンクをコピーしました"
+      : "コピーできませんでした。下の投稿文からURLを選択してコピーしてください。";
+    clearTimeout(shareTimer);
+    shareTimer = setTimeout(() => { els.shareCopied.textContent = ""; }, 4000);
   });
 
-  // 共有リンク(?code=)からの直接表示
-  const code = params.get("code");
-  if (code && /^\d{6}$/.test(code)) {
-    const m = await findMunicipalityByCode(code);
-    if (m) {
-      const pref = prefByName(m.prefecture);
-      if (pref) scope = { type: "prefecture", slug: pref.slug };
-      syncScopeUi();
-      updateCount();
-      resultScopeState = scope;
-      await showResult(m, { animate: false, recordHistory: false });
-    }
+  // 読み込み失敗時の再試行(ページ全体のリロードは不要)
+  els.retry.addEventListener("click", () => { void loadData(); });
+}
+
+/** 自治体データの取得。成否を dataState に反映し、UIの操作可否を必ず更新する。 */
+async function loadData() {
+  if (loadingData) return; // 再試行の連打による二重取得を防ぐ
+  loadingData = true;
+  setDataState("loading");
+  try {
+    const { municipalities } = await loadMunicipalities();
+    all = municipalities;
+    setDataState("ready");
+    updateCount();
+  } catch (e) {
+    console.error(e);
+    all = [];
+    setDataState("error");
+    updateCount();
+    return;
+  } finally {
+    loadingData = false;
   }
+  await restoreFromShareLink();
+}
+
+/** 共有リンク(?code=)からの直接表示。失敗しても通常のガチャは使えるままにする。 */
+async function restoreFromShareLink() {
+  const params = new URLSearchParams(location.search);
+  const code = params.get("code");
+  if (!(code && /^\d{6}$/.test(code))) return;
+  try {
+    const m = await findMunicipalityByCode(code);
+    if (!m) return;
+    // 範囲つきの旧URL(?region= / ?prefecture=)はその範囲を尊重する。
+    // 範囲情報が無い旧URLは【推測しない】(当選県を抽選範囲として断定しない)。
+    const hasScope = Boolean(params.get("region") || params.get("prefecture"));
+    resultScopeState = scope;
+    await showResult(m, { animate: false, recordHistory: false, scopeKnown: hasScope });
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+/** @param {import("../lib/gacha-ready.js").GachaDataState} next */
+function setDataState(next) {
+  dataState = next;
+  refreshControls();
 }
 
 function fillSelects() {
@@ -243,16 +305,33 @@ function setScopeControlsDisabled(on) {
   for (const b of els.chips.querySelectorAll("button")) b.disabled = on;
 }
 
+/**
+ * 準備状態・演出中・対象件数から、操作可否と案内表示をまとめて反映する。
+ * 判定そのものは lib/gacha-ready.js の純関数に集約(状態遷移を回帰テストで固定するため)。
+ */
+function refreshControls() {
+  const ui = gachaControlState({ state: dataState, spinning, poolSize });
+  setScopeControlsDisabled(ui.scopeDisabled);
+  els.run.disabled = ui.runDisabled;
+  els.btnAgain.disabled = ui.againDisabled;
+  els.loading.hidden = !ui.loadingVisible;
+  els.error.hidden = !ui.errorVisible;
+}
+
 function updateCount() {
   const pool = filterByScope(all, scope);
-  els.count.textContent = `対象範囲: ${scopeLabel(scope)}(${pool.length}自治体)`;
+  poolSize = pool.length;
+  els.count.textContent = dataState === "ready"
+    ? `対象範囲: ${scopeLabel(scope)}(${pool.length}自治体)`
+    : `対象範囲: ${scopeLabel(scope)}`;
   const active = new Set(pool.map((m) => prefByName(m.prefecture)?.code ?? ""));
   renderTileMap(els.mapPreview, { activeCodes: active, prefNames: PREF_NAME_BY_CODE });
-  els.run.disabled = pool.length === 0;
+  refreshControls();
 }
 
 async function runGacha() {
-  if (spinning) return;
+  // 準備前(読み込み中・失敗)と演出中は入口で止める。ネイティブ送信はsubmitハンドラ側で封じている。
+  if (!gachaControlState({ state: dataState, spinning, poolSize }).canRun) return;
   const pool = filterByScope(all, scope);
   const winner = drawMunicipality(all, scope); // 演出前に当選を確定(等確率・ロジック変更なし)
   if (!winner) {
@@ -262,9 +341,8 @@ async function runGacha() {
   spinning = true;
   playGachaStart(); // SE: 開始の「カチッ」(タイミング・演出は不変更、音のみ)
   resultScopeState = scope; // この時点の範囲で確定(以後の表示・履歴・URLはこれを使う)
-  els.run.disabled = true;
-  els.btnAgain.disabled = true;
-  setScopeControlsDisabled(true);
+  refreshControls(); // 連打防止 + 範囲変更ロック(spinning=true を反映)
+  xShare.hide();     // 演出中に前回の結果の共有リンクを押せないようにする
   try {
     els.result.hidden = true;
     els.products.hidden = true;
@@ -283,9 +361,7 @@ async function runGacha() {
     await showResult(winner, { animate: !reduceMotion, recordHistory: true });
   } finally {
     spinning = false;
-    els.run.disabled = false;
-    els.btnAgain.disabled = false;
-    setScopeControlsDisabled(false);
+    refreshControls();
   }
 }
 
@@ -325,7 +401,8 @@ async function playRoulette(pool, winner) {
 
 /**
  * @param {Municipality} m
- * @param {{animate:boolean, recordHistory:boolean}} opts
+ * @param {{animate:boolean, recordHistory:boolean, scopeKnown?:boolean}} opts
+ *   scopeKnown=false: 抽選範囲が分からない共有URLから開いた場合。範囲を名乗らない。
  */
 async function showResult(m, opts) {
   current = m;
@@ -341,7 +418,9 @@ async function showResult(m, opts) {
     clearTimeout(revealTimer);
     revealTimer = setTimeout(() => els.result.classList.remove("is-reveal"), 700);
   }
-  els.resultScope.textContent = `${scopeLabel(resultScopeState)}ガチャの結果`;
+  els.resultScope.textContent = opts.scopeKnown === false
+    ? "共有された結果"
+    : `${scopeLabel(resultScopeState)}ガチャの結果`;
   els.resultPref.textContent = m.prefecture;
   els.resultMuni.textContent = m.municipality;
   els.status.textContent = `決定! 今回の運命の自治体は ${m.prefecture}${m.municipality} です`;
@@ -362,9 +441,33 @@ async function showResult(m, opts) {
   const qs = scopeToQuery(resultScopeState);
   history.replaceState(null, "", `${location.pathname}?${qs ? qs + "&" : ""}code=${m.municipalityCode}`);
 
+  updateXShare(m);
+
   if (opts.animate) burstConfetti();
   els.result.scrollIntoView({ behavior: opts.animate ? "smooth" : "auto", block: "start" });
   await loadProducts(m);
+}
+
+/**
+ * 表示中の結果から、共有結果ページURLとXの投稿文を組み立てる。
+ * 範囲は resultScopeState(この結果を生んだ範囲)を使うので、全国抽選なら「全国」のまま共有される。
+ * 共有はおまけの導線なので、ここで失敗してもガチャ本体は止めない。
+ * @param {Municipality} m
+ */
+function updateXShare(m) {
+  try {
+    const url = shareUrl(m, resultScopeState);
+    const text = gachaTweet({
+      scopeLabel: scopeLabel(resultScopeState),
+      prefecture: m.prefecture,
+      municipality: m.municipality,
+      url
+    });
+    xShare.show({ text, intentUrl: xIntentUrl(text), shareUrl: url });
+  } catch (e) {
+    console.error(e);
+    xShare.disable("共有リンクを作れませんでした。もう一度ガチャを回してお試しください。");
+  }
 }
 
 /** @param {boolean} on */

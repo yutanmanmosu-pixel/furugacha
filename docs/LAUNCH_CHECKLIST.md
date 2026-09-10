@@ -41,7 +41,8 @@
 ## 7. SEO・計測(公開後)
 - [ ] Google Search Console にサイト登録 → `sitemap.xml` を送信
 - [ ] Bing Webmaster Tools 登録(任意)
-- [ ] OGP確認(X/LINEのカードプレビュー)。画像は `/assets/img/og.png`
+- [ ] OGP確認(X/LINEのカードプレビュー)。画像は共通 `/assets/img/og-v2.png` / `/budget-gacha/` のみ `/assets/img/og-budget-v2.png`
+      (画像を差し替えるときは必ず新しいファイル名にする。カードキャッシュは画像URL単位のため同名上書きでは反映されない。旧 `og.png` は既存の共有URLのため残す)
 - [ ] アクセス解析を入れる場合は /privacy/ と /cookie-policy/ に追記(現状「未導入」と明記済みのため必須)
 
 ## 8. AdSense(任意・将来)

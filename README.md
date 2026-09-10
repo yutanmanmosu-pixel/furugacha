@@ -37,7 +37,7 @@ furugacha/
 │     │  ├─ lib/               # 純ロジック: gacha / budget / calculator / storage / regions ほか
 │     │  ├─ providers/         # 返礼品データ供給の抽象化(mock / rakuten / 自動フォールバック)
 │     │  └─ pages/             # ページごとの画面制御(gacha-app / budget / calculator ほか)
-│     ├─ img/                  # favicon / og.png / mock返礼品SVG(18種)
+│     ├─ img/                  # favicon / OGP画像(og-v2.png 共通・og-budget-v2.png 予算ガチャ専用・og.png は旧版を保持)/ mock返礼品SVG(18種)
 │     └─ data/municipalities.json  # 自治体マスタ(全国の市区町村・47都道府県。下記§6の1コマンドで公式データから生成)
 ├─ functions/api/              # Pages Functions(秘密情報はここだけ): status.js / products.js / _lib/
 ├─ scripts/
@@ -66,7 +66,7 @@ npm test              # ロジックテスト(node:test / 37件)
 npm run typecheck     # tsc(checkJs, strict)
 npm run build:pages   # scripts/content/*.html からHTML/sitemap/robotsを再生成
 npm run validate:data # 自治体データの整合性チェック
-npm run og            # OGP画像の再生成(要Python + Pillow + Noto CJK)
+npm run og            # OGP画像の再生成(共通+予算ガチャ専用の2枚。要Python + Pillow + 日本語フォント)
 ```
 
 **ページ本文を編集するとき**は `scripts/content/*.html` を直し、`npm run build:pages` を実行してください(`public/**/index.html` は生成物です)。

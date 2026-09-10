@@ -340,10 +340,53 @@ ul, ol { padding-left: 1.4em; margin: 0 0 1em; }
   border-radius: 999px; padding: .3em 1em;
 }
 .result-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: .6em; align-items: center; }
+/* .btn--primary は 0 5px 0 の立体エッジを持つため、行間 .6em(約10px)だと下の行と
+   5pxしか空かず窮屈に見える。ボタン行が続くときだけ、影のぶんを見込んで余白を足す
+   (22px - 立体エッジ5px = 見た目17px)。 */
+.result-actions + .result-actions { margin-top: 22px; }
 /* 緑の大CTAは上のボタン群(お気に入り/共有)と視覚的にぶつからないよう、少し下げる */
 .result-cta { margin-top: 16px; }
 @media (max-width: 640px) { .result-cta { margin-top: 22px; } }
 .result-positive { font-size: .8rem; color: var(--ink-soft); margin-top: 1em; }
+
+/* ---------- 「この返礼品を残す」(予算おまかせガチャ専用) ----------
+   お気に入り(♡)とは別機能。色だけに頼らず、枠・背景・鍵アイコン・文言で状態を示す。 */
+.product-card__pin { margin-top: 10px; }
+.pin-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: .35em;
+  width: 100%; min-height: 40px; padding: .5em 1em;
+  font-family: inherit; font-size: .82rem; font-weight: 800; line-height: 1.3;
+  color: var(--green-deep); background: #fff; cursor: pointer;
+  border: 2px dashed var(--line); border-radius: 999px;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.pin-btn:hover { border-color: var(--green); background: var(--green-soft); }
+.pin-btn.is-pinned {
+  color: #fff; background: var(--green-deep); border-style: solid; border-color: var(--green-deep);
+}
+/* フォーム付近の案内(条件変更・全件固定)。結果ブロックの外に置くので、
+   結果を隠した状態でも必ず見える。 */
+.budget-notice {
+  max-width: 520px; margin: 16px auto 0; padding: 10px 14px; text-align: center;
+  font-size: .87rem; font-weight: 700; color: #8C5A18;
+  background: var(--orange-soft); border: 1.5px solid #E8C49A; border-radius: 12px;
+}
+.budget-notice[hidden] { display: none; }
+.budget-pin__hint { text-align: center; margin: 0 0 12px; }
+.budget-pin {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px;
+  margin-top: 16px;
+}
+.budget-pin[hidden], .budget-pin__all[hidden] { display: none; }
+.budget-pin__count {
+  margin: 0; font-weight: 800; font-size: .9rem; color: var(--green-deep);
+  background: var(--green-soft); border-radius: 999px; padding: .4em 1.1em;
+}
+.budget-pin__all {
+  max-width: 520px; margin: 14px auto 0; padding: 10px 14px; text-align: center;
+  font-size: .85rem; font-weight: 700; color: #8C5A18;
+  background: var(--orange-soft); border: 1.5px solid #E8C49A; border-radius: 12px;
+}
 
 /* ---------- Xで共有(自治体ガチャ・予算ガチャ・共有結果ページ) ----------
    ・投稿はあらかじめURLを入れた通常のリンクで開く(ポップアップブロック回避)
@@ -357,7 +400,18 @@ ul, ol { padding-left: 1.4em; margin: 0 0 1em; }
 .xshare__logo { font-weight: 700; margin-right: .45em; font-size: 1.05em; line-height: 1; }
 .xshare__note { color: var(--ink-soft); }
 .xshare__preview { font-size: .85rem; }
-.xshare__preview > summary { cursor: pointer; color: var(--green-deep); font-weight: 700; }
+/* 開閉マーカーは自前で描く(中央揃えにしたときに、マーカーだけ左端へ取り残されないため)。
+   適用範囲はこのウィジェット内の summary だけ。サイト全体の details/summary は変更しない。 */
+.xshare__preview > summary {
+  cursor: pointer; color: var(--green-deep); font-weight: 700;
+  list-style: none; /* 既定の三角を消す(Firefox/Chrome) */
+}
+.xshare__preview > summary::-webkit-details-marker { display: none; } /* 旧WebKit */
+.xshare__preview > summary::before {
+  content: "▶"; display: inline-block; margin-right: .4em; font-size: .8em;
+  transition: transform .15s;
+}
+.xshare__preview[open] > summary::before { transform: rotate(90deg); }
 .xshare__text {
   width: 100%; margin-top: 8px; padding: .7em .8em; box-sizing: border-box;
   font-family: inherit; font-size: .85rem; line-height: 1.6; color: var(--ink);
@@ -365,6 +419,17 @@ ul, ol { padding-left: 1.4em; margin: 0 0 1em; }
 }
 .xshare__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: .5em 0 .3em; }
 .xshare__hint { margin: 0; }
+
+/* 中央揃えの縦並び導線に置く場合(予算ガチャ)。
+   自治体ガチャの結果カードは左揃えのボタン群が並ぶので、そちらには付けない。 */
+.xshare--center { text-align: center; margin: 18px 0 0; }
+.xshare--center .xshare__row { flex-direction: column; align-items: center; gap: 6px; margin-bottom: .5em; }
+.xshare--center .xshare__preview > summary { text-align: center; }
+/* 開いた中身は読みやすい幅に収め、本文は左揃えへ戻す(中央揃えを継承させない) */
+.xshare--center .xshare__preview > *:not(summary) { max-width: 520px; margin-inline: auto; text-align: left; }
+/* コピーボタンと結果メッセージは縦に積む。横並びのままだと gap のぶん
+   ボタンの中心が数pxずれ、長い失敗メッセージでボタンが潰れるため。 */
+.xshare--center .xshare__actions { flex-direction: column; align-items: center; gap: 6px; }
 
 /* ---------- 共有結果ページ ---------- */
 .share-fallback { max-width: 640px; margin: 0 auto; text-align: center; }
@@ -397,6 +462,12 @@ ul, ol { padding-left: 1.4em; margin: 0 0 1em; }
   overflow: hidden; display: flex; flex-direction: column;
 }
 .product-card__media { position: relative; aspect-ratio: 1 / 1; background: var(--cream-deep); }
+/* 固定中のカードは、文言(残す設定中)・鍵アイコンに加えて枠と地色でも示す。
+   .product-card の background / box-shadow を上書きする必要があるので、その【後ろ】に置く。 */
+.product-card--pinned {
+  background: var(--green-band);
+  box-shadow: 0 0 0 3px var(--green-deep) inset, var(--shadow);
+}
 .product-card__media img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .product-card__noimg { display: grid; place-items: center; height: 100%; font-size: 2.6rem; }
 .product-card__body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
@@ -532,6 +603,11 @@ details.calc-detail summary { cursor: pointer; font-weight: 800; color: var(--gr
 .calc-amount-label { font-weight: 800; margin-bottom: 0; }
 .calc-note { font-size: .8rem; color: var(--ink-soft); }
 .calc-breakdown { width: 100%; border-collapse: collapse; font-size: .88rem; margin: 14px 0; background: #fff; border-radius: 12px; overflow: hidden; }
+/* 内訳表の値は「3,560,000円」のように金額と単位が一体。狭幅で「3,560,000」と「円」に
+   分断されないよう、【金額を包んだ .nobr だけ】折り返しを止める。
+   セル全体に nowrap を掛けると「10%(復興特別所得税を加味)」のような長い値で
+   表がはみ出すため、対象を金額に限定する。 */
+.calc-breakdown td .nobr { display: inline-block; }
 .calc-breakdown th, .calc-breakdown td { padding: .55em .8em; border-bottom: 1px solid var(--line); text-align: left; }
 .calc-breakdown th { width: 60%; font-weight: 700; color: var(--ink-soft); }
 .calc-cta { border-top: 2px dashed var(--line); margin-top: 18px; padding-top: 18px; }
@@ -787,7 +863,20 @@ p, li, dd, .section-lead, .note, .faq .a { text-wrap: pretty; }
 /* ============================================================
    2026-09-07: 検索サブ導線(2行) / ホームティーザー注記の余白 / 点数選択
    ============================================================ */
-.search-fallback-cta { text-align: center; margin: 18px 0 0; font-size: .95rem; color: var(--ink-soft); line-height: 1.5; }
+/* 予算サマリーは「予算 50,000円」「残り 0円)」などを .nobr 単位で組み立てている。
+   意味のかたまりの【あいだ】でだけ折り返させ、金額と単位を分断しない。
+   nowrap は各かたまりに限定するので、360pxでも横へはみ出さない。 */
+.budget-summary { line-height: 1.9; }
+.budget-summary .nobr { display: inline-block; }
+
+.search-fallback-cta { text-align: center; margin: 22px 0 0; font-size: .95rem; color: var(--ink-soft); line-height: 1.5; }
+
+/* フォーム下の補足(例: 予算ガチャの「控除上限シミュレーター」案内)。
+   .btn--primary は box-shadow で下に5pxの立体エッジ + ぼかし影を持つため、
+   通常のmarginでその下端から16〜24px空ける(transformや相対位置では動かさない)。 */
+.form-hint { margin-top: 26px; }
+.form-hint__line { display: inline-block; }   /* 意味の切れ目で折り返す */
+.form-hint a { white-space: nowrap; }         /* 「控除上限シミュレーター」を途中で割らない */
 .search-fallback-cta__lead { display: block; }
 .search-fallback-cta__link {
   display: inline-block; margin-top: 4px; font-size: 1rem; font-weight: 700;

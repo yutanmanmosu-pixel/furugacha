@@ -99,10 +99,12 @@ function run() {
   }
 
   els.breakdown.replaceChildren(
-    row("給与所得(給与所得控除後)", yen(r.salaryIncome)),
-    row("社会保険料(概算/入力値)", yen(r.socialInsurance)),
-    row("住民税の課税所得(概算)", yen(r.taxableResident)),
-    row("住民税所得割額(10%)", yen(r.shotokuwari)),
+    // 金額は途中で折り返さない(「3,560,000」と「円」が離れないように)。
+    // 税率の行は文章が続くので、通常どおり折り返させる。
+    row("給与所得(給与所得控除後)", yen(r.salaryIncome), true),
+    row("社会保険料(概算/入力値)", yen(r.socialInsurance), true),
+    row("住民税の課税所得(概算)", yen(r.taxableResident), true),
+    row("住民税所得割額(10%)", yen(r.shotokuwari), true),
     row("適用した所得税率", `${Math.round(r.incomeTaxRate * 100)}%(復興特別所得税を加味)`)
   );
   els.assumptions.replaceChildren(...r.assumptions.map((a) => {
@@ -125,20 +127,32 @@ function clearResult() {
 
 /** 予算ガチャへの金額引き継ぎを無効化する(表示・URL・sessionStorageのすべてから古い金額を外す) */
 function disableHandoff() {
+  // 画面側を先に確定させる。保存領域が使えない環境でもここまでは必ず完了する。
   handoffLimit = 0;
   els.ctaBudget.parentElement?.setAttribute("hidden", "");
   els.ctaBudget.href = "/budget-gacha/";
   els.ctaBudgetAmount.textContent = "";
+  // 保存済みの金額も消す。予算ガチャは ?budget= が無いとき sessionStorage の値を復元するため、
+  // 画面から消しただけでは、メニュー経由で /budget-gacha/ を開いたときに古い金額が生き返る。
+  // 消すのはこのキーだけ(他の保存データには触れない)。拒否される環境では黙って諦める。
+  try { sessionStorage.removeItem(HANDOFF_KEY); } catch { /* 利用不可・拒否環境は無視 */ }
 }
 
-/** @param {string} k @param {string} v */
-function row(k, v) {
+/** @param {string} k @param {string} v @param {boolean} [nowrap] 値を途中で折り返さない(金額用) */
+function row(k, v, nowrap = false) {
   const tr = document.createElement("tr");
   const th = document.createElement("th");
   th.scope = "row";
   th.textContent = k;
   const td = document.createElement("td");
-  td.textContent = v;
+  if (nowrap) {
+    const span = document.createElement("span");
+    span.className = "nobr";
+    span.textContent = v;
+    td.append(span);
+  } else {
+    td.textContent = v;
+  }
   tr.append(th, td);
   return tr;
 }

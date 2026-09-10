@@ -10,7 +10,10 @@ import { toggleFavProduct, isFavProduct } from "../lib/storage.js";
 
 /**
  * @param {Product} p
- * @param {{onFavChange?: (on:boolean)=>void}} [opts]
+ * @param {{onFavChange?: (on:boolean)=>void,
+ *          pin?: {pinned: boolean, onToggle: (next:boolean)=>void}}} [opts]
+ *   pin: 「この返礼品を残す」トグル。渡したときだけ描画するので、
+ *        予算おまかせガチャ以外のページ(お気に入り・検索・自治体ガチャ)の見た目は変わらない。
  * @returns {HTMLElement}
  */
 export function productCard(p, opts = {}) {
@@ -76,6 +79,34 @@ export function productCard(p, opts = {}) {
   actions.append(link, fav);
 
   body.append(title, meta, price, actions);
+
+  // 「残す」トグル(予算おまかせガチャ専用)。お気に入りとは別の機能なので、
+  // 行を分けて文言つきのボタンにし、色だけでなくアイコンと文言でも状態が分かるようにする。
+  if (opts.pin) {
+    const pin = document.createElement("button");
+    pin.type = "button";
+    pin.className = "pin-btn";
+    const paintPin = (/** @type {boolean} */ on) => {
+      pin.textContent = on ? "🔒 残す設定中" : "この返礼品を残す";
+      pin.setAttribute("aria-pressed", String(on));
+      pin.setAttribute("aria-label", on
+        ? `${p.title} を残す設定にしています。押すと解除します`
+        : `${p.title} を残す(引き直しても残ります)`);
+      pin.classList.toggle("is-pinned", on);
+      card.classList.toggle("product-card--pinned", on);
+    };
+    paintPin(opts.pin.pinned);
+    pin.addEventListener("click", () => {
+      const next = !(pin.getAttribute("aria-pressed") === "true");
+      paintPin(next);
+      opts.pin?.onToggle(next);
+    });
+    const pinRow = document.createElement("div");
+    pinRow.className = "product-card__pin";
+    pinRow.append(pin);
+    body.append(pinRow);
+  }
+
   card.append(media, body);
   return card;
 }

@@ -200,6 +200,14 @@ def sync_versioned_js() -> Path:
           f"{', '.join(keep)}" + (f" | dropped: {', '.join(drop)}" if drop else ""))
     return target
 
+# ====== OGP画像(scripts/make-og.py の生成物) ======
+# 画像を作り直すときは【必ず新しいファイル名】にする。Xなどのカードキャッシュは
+# 画像URL単位で保持されるため、同名で上書きしても既存の共有カードには反映されない。
+# 旧 /assets/img/og.png は過去に共有されたURLから参照されうるので削除しない。
+DEFAULT_OG_IMAGE = "/assets/img/og-v2.png"       # 全ページ共通(自治体ガチャ訴求)
+BUDGET_OG_IMAGE = "/assets/img/og-budget-v2.png"  # /budget-gacha/ 専用(予算ガチャ訴求)
+OG_IMAGE_W, OG_IMAGE_H = 1200, 630
+
 DEFAULT_DESC = (
     "ふるさと納税の寄附先が決められないなら、全国1,741自治体からランダムに1つ選ぶ「自治体ガチャ」。"
     "範囲(全国・地方・都道府県)を選んで回すだけ。控除上限シミュレーターや予算おまかせガチャも無料・ログイン不要。"
@@ -217,9 +225,10 @@ PAGES: list[dict] = [
     dict(path="search", frag="search.html", title="返礼品をキーワードから探す",
          desc="欲しい返礼品が決まっている方向けの検索ページ。「鶏肉」「サーモン」「お米」などのキーワードで、楽天ふるさと納税の返礼品から候補を表示します。ガチャとあわせてどうぞ。",
          scripts=["/assets/js/pages/search.js"], ptype="page"),
+    # 広告の主要リンク先。カード画像も予算ガチャ専用のものを使い、画像の文言とリンク先を一致させる
     dict(path="budget-gacha", frag="budget-gacha.html", title="予算おまかせガチャ",
          desc="予算を入れてカテゴリを選ぶだけ。予算を超えない返礼品の組み合わせをガチャが提案します。控除上限シミュレーターからの金額引き継ぎにも対応。",
-         scripts=["/assets/js/pages/budget.js"], ptype="page"),
+         scripts=["/assets/js/pages/budget.js"], ptype="page", og_image=BUDGET_OG_IMAGE),
     dict(path="calculator", frag="calculator.html", title="控除上限額シミュレーター",
          desc="年収と家族構成を入れるだけで、ふるさと納税の控除上限額の目安を無料で試算。結果はそのまま予算おまかせガチャへ引き継げます。",
          scripts=["/assets/js/pages/calculator.js"], ptype="page"),
@@ -415,7 +424,8 @@ def jsonld_for(page) -> str:
         blocks.append({
             "@context": "https://schema.org", "@type": "Organization",
             "name": SITE_NAME, "url": SITE_ORIGIN + "/",
-            "logo": SITE_ORIGIN + "/assets/img/og.png",
+            # Organization のロゴ用途。ページ個別のカード画像ではなく常に共通画像を指す
+            "logo": SITE_ORIGIN + DEFAULT_OG_IMAGE,
         })
     if page["ptype"] == "article":
         blocks.append({
@@ -427,7 +437,8 @@ def jsonld_for(page) -> str:
             "mainEntityOfPage": canonical(page["path"]),
             "author": {"@type": "Organization", "name": f"{SITE_NAME}編集部"},
             "publisher": {"@type": "Organization", "name": SITE_NAME,
-                          "logo": {"@type": "ImageObject", "url": SITE_ORIGIN + "/assets/img/og.png"}},
+                          # publisher のロゴ用途。こちらも共通画像で固定する
+                          "logo": {"@type": "ImageObject", "url": SITE_ORIGIN + DEFAULT_OG_IMAGE}},
         })
     return "".join(f'<script type="application/ld+json">{json.dumps(b, ensure_ascii=False)}</script>' for b in blocks)
 
@@ -453,6 +464,8 @@ def render(page) -> str:
     scripts = "".join(f'<script type="module" src="{js_asset(s)}"></script>' for s in ["/assets/js/main.js", *page["scripts"]])
     og_type = "article" if page["ptype"] == "article" else "website"
     title = page["title"] if page["ptype"] == "home" else f'{page["title"]}|{SITE_NAME}'
+    # og:image と twitter:image は必ず同じURLを出す(食い違うとXとその他で別の画像が出る)
+    og_image = SITE_ORIGIN + page.get("og_image", DEFAULT_OG_IMAGE)
     return f"""<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -466,8 +479,11 @@ def render(page) -> str:
 <meta property="og:title" content="{title}">
 <meta property="og:description" content="{page['desc']}">
 <meta property="og:url" content="{canonical(page['path'])}">
-<meta property="og:image" content="{SITE_ORIGIN}/assets/img/og.png">
+<meta property="og:image" content="{og_image}">
+<meta property="og:image:width" content="{OG_IMAGE_W}">
+<meta property="og:image:height" content="{OG_IMAGE_H}">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="{og_image}">
 <meta name="theme-color" content="#2E7D46">
 <meta name="furugacha-build" content="{ASSET_VERSION}">
 <meta name="google-adsense-account" content="ca-pub-6256751733136266">

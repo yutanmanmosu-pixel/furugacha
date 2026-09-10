@@ -40,7 +40,13 @@ const dom = installDom({
   "#budget-share-copy": { tag: "button" },
   "#budget-share-copied": { tag: "span" },
   "#budget-share-note": { tag: "span" },
-  "#budget-share-details": { tag: "details", open: false }
+  "#budget-share-details": { tag: "details", open: false },
+  "#budget-pin-hint": { tag: "p" },
+  "#budget-pin-bar": { tag: "div", hidden: true },
+  "#budget-pin-count": { tag: "p" },
+  "#budget-pin-clear": { tag: "button" },
+  "#budget-notice": { tag: "p", hidden: true },
+  "#budget-pin-all": { tag: "p", hidden: true }
 });
 
 await import("../public/assets/js/pages/budget.js");

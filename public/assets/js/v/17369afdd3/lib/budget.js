@@ -9,6 +9,8 @@
  * @property {Product[]} items
  * @property {number} total
  * @property {number} remaining
+ * @property {number} [pinnedCount] - 「残す」で固定されていた点数
+ * @property {number} [pinnedTotal] - 固定分の合計額
  */
 
 /**
@@ -126,38 +128,77 @@ function enumerate(pool, budget, maxItems, visit) {
 }
 
 /**
+ * 「残す」で固定された返礼品の正規化。
+ * 予算・点数・重複の不変条件をここで守る(壊れた入力が来ても組み合わせを壊さない)。
+ * @param {Product[] | undefined} pinned @param {number} budget @param {number} maxItems
+ * @returns {Product[]}
+ */
+function normalizePinned(pinned, budget, maxItems) {
+  if (!Array.isArray(pinned) || pinned.length === 0) return [];
+  const seen = new Set();
+  /** @type {Product[]} */
+  const out = [];
+  let total = 0;
+  for (const p of pinned) {
+    if (!p || typeof p.id !== "string") continue;
+    if (!Number.isFinite(p.amount) || p.amount <= 0) continue;
+    if (seen.has(p.id)) continue;               // 同一IDの重複を作らない
+    if (out.length >= maxItems) break;          // 全体で最大5点
+    if (total + p.amount > budget) continue;    // 予算を絶対に超えない
+    seen.add(p.id); out.push(p); total += p.amount;
+  }
+  return out;
+}
+
+/**
  * 予算おまかせガチャ本体(2026-09-07改訂: 最大5点・点数指定・予算最適化)。
  * 優先順位: ①予算を絶対に超えない ②指定点数(可能な範囲) ③合計を予算へ近づける
  *          ④同一商品なし ⑤ガチャとしてのランダム性(近似最良の中から抽選)。
  * @param {Product[]} candidates 条件(カテゴリ等)で絞り込み済みの候補
  * @param {number} budget 予算(円)
- * @param {{maxItems?:number, attempts?:number, count?:number|null, rng?:() => number}} [opts]
+ * @param {{maxItems?:number, attempts?:number, count?:number|null, pinned?:Product[], rng?:() => number}} [opts]
  * @returns {BudgetSet}
  */
 export function generateBudgetSet(candidates, budget, opts = {}) {
   const rng = opts.rng ?? Math.random;
   const maxItems = Math.max(1, Math.min(BUDGET_MAX_ITEMS, opts.maxItems ?? BUDGET_MAX_ITEMS));
-  const empty = { items: [], total: 0, remaining: budget };
+  const empty = { items: [], total: 0, remaining: budget, pinnedCount: 0, pinnedTotal: 0 };
   if (!Number.isFinite(budget) || budget <= 0) return empty;
 
-  // 予算内・重複IDなしの候補
+  // 「残す」で固定された返礼品。ここから先の探索は固定分を差し引いた残額・残枠で行う。
+  const pinned = normalizePinned(opts.pinned, budget, maxItems);
+  const pinnedIds = new Set(pinned.map((p) => p.id));
+  const pinnedTotal = pinned.reduce((sum, p) => sum + p.amount, 0);
+  const restBudget = budget - pinnedTotal;
+  const restMax = maxItems - pinned.length;
+  // 点数指定は【固定分を含む全体】の点数。新しく選ぶのはその差分だけ。
+  const requestedAll = opts.count != null && opts.count >= 1 && opts.count <= maxItems ? Math.floor(opts.count) : null;
+  const restCount = requestedAll == null ? null : Math.max(0, requestedAll - pinned.length);
+  /** 固定分だけを返す(引き直す枠・残額・指定点数のいずれかが尽きたとき) */
+  const pinnedOnly = () => ({
+    items: pinned.slice(), total: pinnedTotal, remaining: budget - pinnedTotal,
+    pinnedCount: pinned.length, pinnedTotal
+  });
+  if (restMax <= 0 || restBudget <= 0 || restCount === 0) return pinnedOnly();
+
+  // 残額内・重複IDなしの候補(固定済みは候補から外す = 同一商品の重複を防ぐ)
   const seenIds = new Set();
   /** @type {Product[]} */
   const valid = [];
   for (const p of candidates) {
-    if (!Number.isFinite(p.amount) || p.amount <= 0 || p.amount > budget) continue;
-    if (seenIds.has(p.id)) continue;
+    if (!Number.isFinite(p.amount) || p.amount <= 0 || p.amount > restBudget) continue;
+    if (seenIds.has(p.id) || pinnedIds.has(p.id)) continue;
     seenIds.add(p.id); valid.push(p);
   }
-  if (valid.length === 0) return empty;
+  if (valid.length === 0) return pinned.length > 0 ? pinnedOnly() : empty;
 
   const pool = samplePool(valid, rng).sort((a, b) => b.amount - a.amount);
-  const requested = opts.count != null && opts.count >= 1 && opts.count <= maxItems ? Math.floor(opts.count) : null;
+  const requested = restCount;
 
-  // パス1: サイズ別の最良合計
+  // パス1: サイズ別の最良合計(残額・残枠のなかで)
   /** @type {number[]} */
-  const bestBySize = new Array(maxItems + 1).fill(-1);
-  enumerate(pool, budget, maxItems, (items, total) => {
+  const bestBySize = new Array(restMax + 1).fill(-1);
+  enumerate(pool, restBudget, restMax, (items, total) => {
     const k = items.length;
     if (total > (bestBySize[k] ?? -1)) bestBySize[k] = total;
   });
@@ -170,25 +211,29 @@ export function generateBudgetSet(candidates, budget, opts = {}) {
     while (k >= 1 && (bestBySize[k] ?? -1) < 0) k--;
     if (k >= 1) sizes.add(k);
   } else {
-    for (let k = 1; k <= maxItems; k++) if ((bestBySize[k] ?? -1) >= 0) sizes.add(k);
+    for (let k = 1; k <= restMax; k++) if ((bestBySize[k] ?? -1) >= 0) sizes.add(k);
   }
-  if (sizes.size === 0) return empty;
+  // 残額では1点も追加できない場合でも、固定した返礼品は必ず残す
+  if (sizes.size === 0) return pinned.length > 0 ? pinnedOnly() : empty;
   let bestTotal = -1;
   for (const k of sizes) bestTotal = Math.max(bestTotal, bestBySize[k] ?? -1);
 
   // パス2: 最良に近い組み合わせ(許容差: 予算の5%か500円の大きい方)を集め、
   //        自治体の多様性で並べたうえで上位から抽選する(=近似最良×ランダム)。
-  const tolerance = Math.max(500, Math.round(budget * 0.05));
+  const tolerance = Math.max(500, Math.round(restBudget * 0.05));
   /** @type {{items: Product[], total: number, score: number}[]} */
   const near = [];
-  enumerate(pool, budget, maxItems, (items, total) => {
+  enumerate(pool, restBudget, restMax, (items, total) => {
     if (!sizes.has(items.length) || total < bestTotal - tolerance) return;
-    const variety = new Set(items.map((p) => p.municipality)).size;
-    near.push({ items, total, score: total / budget + variety * 0.03 - items.length * 0.005 });
+    const variety = new Set([...pinned, ...items].map((p) => p.municipality)).size;
+    near.push({ items, total, score: total / restBudget + variety * 0.03 - items.length * 0.005 });
   });
   near.sort((a, b) => b.score - a.score);
   const top = near.slice(0, Math.min(near.length, 8));
   const chosen = top[Math.floor(rng() * top.length)] ?? top[0];
-  if (!chosen) return empty;
-  return { items: chosen.items, total: chosen.total, remaining: budget - chosen.total };
+  if (!chosen) return pinned.length > 0 ? pinnedOnly() : empty;
+  // 固定分を先頭に、引き直した分を後ろへ(固定分どうしの順序は維持する)
+  const items = [...pinned, ...chosen.items];
+  const total = pinnedTotal + chosen.total;
+  return { items, total, remaining: budget - total, pinnedCount: pinned.length, pinnedTotal };
 }

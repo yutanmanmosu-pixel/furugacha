@@ -14,7 +14,9 @@ import { toggleFavMunicipality, isFavMunicipality, pushGachaHistory } from "../l
 import { productCard, loadingEl } from "./product-card.js";
 import { playGachaStart, playRattle, playLand } from "../lib/sound.js";
 import { PRODUCT_FETCH_LIMIT, splitProducts, moreLabel } from "../lib/product-paging.js";
-import { shareResult } from "../lib/share.js";
+import { copyShareLink, shareUrl } from "../lib/share.js";
+import { gachaTweet, xIntentUrl } from "../lib/share-text.js";
+import { bindXShare } from "./x-share.js";
 
 /** @typedef {import("../lib/types.js").Municipality} Municipality */
 /** @typedef {import("../lib/types.js").GachaScope} GachaScope */
@@ -56,7 +58,6 @@ const els = {
   btnChange: /** @type {HTMLButtonElement} */ (must("#btn-change")),
   btnFav: /** @type {HTMLButtonElement} */ (must("#btn-fav-muni")),
   btnShare: /** @type {HTMLButtonElement} */ (must("#btn-share")),
-  shareDone: must("#share-done"),
   rakutenLink: /** @type {HTMLAnchorElement} */ (must("#result-rakuten-link")),
   products: must("#products"),
   productsTitle: must("#products-title-name"),
@@ -67,8 +68,21 @@ const els = {
   productsEmpty: must("#products-empty"),
   productsEmptyTitle: must("#products-empty-title"),
   productsEmptySub: must("#products-empty-sub"),
-  productsEmptyAgain: /** @type {HTMLButtonElement} */ (must("#products-empty-again"))
+  productsEmptyAgain: /** @type {HTMLButtonElement} */ (must("#products-empty-again")),
+  shareRoot: must("#gacha-share"),
+  shareLink: /** @type {HTMLAnchorElement} */ (must("#gacha-share-x")),
+  shareText: /** @type {HTMLTextAreaElement} */ (must("#gacha-share-text")),
+  shareCopy: /** @type {HTMLButtonElement} */ (must("#gacha-share-copy")),
+  shareCopied: must("#gacha-share-copied"),
+  shareNote: must("#gacha-share-note"),
+  shareDetails: /** @type {HTMLDetailsElement} */ (must("#gacha-share-details"))
 };
+
+/** Xで共有ウィジェット(投稿はユーザー本人がXの画面で確定する) */
+const xShare = bindXShare({
+  root: els.shareRoot, link: els.shareLink, textarea: els.shareText,
+  copyBtn: els.shareCopy, copied: els.shareCopied, note: els.shareNote, details: els.shareDetails
+});
 
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -185,9 +199,12 @@ function setupUi() {
   });
   els.btnShare.addEventListener("click", async () => {
     if (!current) return;
-    const r = await shareResult(current);
-    els.shareDone.textContent = r === "copied" ? "リンクをコピーしました" : r === "failed" ? "共有できませんでした" : "";
-    if (r !== "shared") { clearTimeout(shareTimer); shareTimer = setTimeout(() => { els.shareDone.textContent = ""; }, 3000); }
+    const r = await copyShareLink(current, resultScopeState);
+    els.shareCopied.textContent = r === "copied"
+      ? "結果ページのリンクをコピーしました"
+      : "コピーできませんでした。下の投稿文からURLを選択してコピーしてください。";
+    clearTimeout(shareTimer);
+    shareTimer = setTimeout(() => { els.shareCopied.textContent = ""; }, 4000);
   });
 
   // 読み込み失敗時の再試行(ページ全体のリロードは不要)
@@ -218,17 +235,17 @@ async function loadData() {
 
 /** 共有リンク(?code=)からの直接表示。失敗しても通常のガチャは使えるままにする。 */
 async function restoreFromShareLink() {
-  const code = new URLSearchParams(location.search).get("code");
+  const params = new URLSearchParams(location.search);
+  const code = params.get("code");
   if (!(code && /^\d{6}$/.test(code))) return;
   try {
     const m = await findMunicipalityByCode(code);
     if (!m) return;
-    const pref = prefByName(m.prefecture);
-    if (pref) scope = { type: "prefecture", slug: pref.slug };
-    syncScopeUi();
-    updateCount();
+    // 範囲つきの旧URL(?region= / ?prefecture=)はその範囲を尊重する。
+    // 範囲情報が無い旧URLは【推測しない】(当選県を抽選範囲として断定しない)。
+    const hasScope = Boolean(params.get("region") || params.get("prefecture"));
     resultScopeState = scope;
-    await showResult(m, { animate: false, recordHistory: false });
+    await showResult(m, { animate: false, recordHistory: false, scopeKnown: hasScope });
   } catch (e) {
     console.error(e);
   }
@@ -325,6 +342,7 @@ async function runGacha() {
   playGachaStart(); // SE: 開始の「カチッ」(タイミング・演出は不変更、音のみ)
   resultScopeState = scope; // この時点の範囲で確定(以後の表示・履歴・URLはこれを使う)
   refreshControls(); // 連打防止 + 範囲変更ロック(spinning=true を反映)
+  xShare.hide();     // 演出中に前回の結果の共有リンクを押せないようにする
   try {
     els.result.hidden = true;
     els.products.hidden = true;
@@ -383,7 +401,8 @@ async function playRoulette(pool, winner) {
 
 /**
  * @param {Municipality} m
- * @param {{animate:boolean, recordHistory:boolean}} opts
+ * @param {{animate:boolean, recordHistory:boolean, scopeKnown?:boolean}} opts
+ *   scopeKnown=false: 抽選範囲が分からない共有URLから開いた場合。範囲を名乗らない。
  */
 async function showResult(m, opts) {
   current = m;
@@ -399,7 +418,9 @@ async function showResult(m, opts) {
     clearTimeout(revealTimer);
     revealTimer = setTimeout(() => els.result.classList.remove("is-reveal"), 700);
   }
-  els.resultScope.textContent = `${scopeLabel(resultScopeState)}ガチャの結果`;
+  els.resultScope.textContent = opts.scopeKnown === false
+    ? "共有された結果"
+    : `${scopeLabel(resultScopeState)}ガチャの結果`;
   els.resultPref.textContent = m.prefecture;
   els.resultMuni.textContent = m.municipality;
   els.status.textContent = `決定! 今回の運命の自治体は ${m.prefecture}${m.municipality} です`;
@@ -420,9 +441,33 @@ async function showResult(m, opts) {
   const qs = scopeToQuery(resultScopeState);
   history.replaceState(null, "", `${location.pathname}?${qs ? qs + "&" : ""}code=${m.municipalityCode}`);
 
+  updateXShare(m);
+
   if (opts.animate) burstConfetti();
   els.result.scrollIntoView({ behavior: opts.animate ? "smooth" : "auto", block: "start" });
   await loadProducts(m);
+}
+
+/**
+ * 表示中の結果から、共有結果ページURLとXの投稿文を組み立てる。
+ * 範囲は resultScopeState(この結果を生んだ範囲)を使うので、全国抽選なら「全国」のまま共有される。
+ * 共有はおまけの導線なので、ここで失敗してもガチャ本体は止めない。
+ * @param {Municipality} m
+ */
+function updateXShare(m) {
+  try {
+    const url = shareUrl(m, resultScopeState);
+    const text = gachaTweet({
+      scopeLabel: scopeLabel(resultScopeState),
+      prefecture: m.prefecture,
+      municipality: m.municipality,
+      url
+    });
+    xShare.show({ text, intentUrl: xIntentUrl(text), shareUrl: url });
+  } catch (e) {
+    console.error(e);
+    xShare.disable("共有リンクを作れませんでした。もう一度ガチャを回してお試しください。");
+  }
 }
 
 /** @param {boolean} on */
