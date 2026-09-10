@@ -5,7 +5,9 @@
       <p class="section-lead">予算とカテゴリを決めるだけ。予算を<strong>絶対に超えない</strong>返礼品の組み合わせを、ガチャが提案します。</p>
     </div>
 
-    <form id="budget-form" class="card form-card" aria-label="予算おまかせガチャの設定">
+    <!-- method="dialog": 送信先の無いJS専用フォーム。JS到着前の誤送信で
+         ?budget=&budget-count=auto へリロードされないようにする。 -->
+    <form id="budget-form" method="dialog" class="card form-card" aria-label="予算おまかせガチャの設定">
       <div class="field">
         <label for="budget-input">予算(円)<span class="hint">2,000円〜2,000,000円</span></label>
         <input id="budget-input" name="budget" type="text" inputmode="numeric" autocomplete="off" placeholder="例: 50000">

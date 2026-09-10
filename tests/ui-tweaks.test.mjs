@@ -53,3 +53,49 @@ test("予算ガチャ: 10,000円以上用の点数選択UI(おまかせ+1〜5点
   assert.ok(js.includes("normalizeBudgetCount(") && js.includes("maxItems: BUDGET_MAX_ITEMS"), "ページ側が最大5点/点数指定を使っていない");
   assert.ok(!js.includes("maxItems: 6"), "旧maxItems:6が残っている");
 });
+
+/* ---------- 2026-09-08: 軽微UI改善(範囲UI・結果CTA・注記の改行) ---------- */
+
+test("範囲UI: 「都道府県から」選択中だけ地方ボタン群を隠す(範囲・抽選ロジックには手を入れない)", () => {
+  const js = readFileSync("public/assets/js/pages/gacha-app.js", "utf8");
+  assert.match(js, /els\.chips\.hidden = scope\.type === "prefecture";/, "都道府県選択時にチップを隠していない");
+  // 隠す判定は表示同期(syncScopeUi)の中だけで、抽選・範囲計算には影響させない
+  const sync = js.slice(js.indexOf("function syncScopeUi"), js.indexOf("function setScopeControlsDisabled"));
+  assert.ok(sync.includes('els.chips.hidden = scope.type === "prefecture";'), "syncScopeUi以外で切り替えている");
+  // 抽選・範囲計算(drawMunicipality / filterByScope)はチップの表示状態を参照しない
+  const runGacha = js.slice(js.indexOf("async function runGacha"), js.indexOf("async function playRoulette"));
+  assert.ok(!runGacha.includes("els.chips"), "抽選処理がチップの表示状態に依存している");
+  const css = readFileSync("public/assets/css/style.css", "utf8");
+  // .scope-chips は display:flex のため、[hidden] を効かせる打ち消しが必要
+  assert.match(css, /\.scope-chips\[hidden\] \{ display: none; \}/);
+});
+
+test("結果画面: 緑の大CTAは上のボタン群から余白を取る(PC16px/狭幅22px)", () => {
+  const html = readFileSync("public/gacha/index.html", "utf8");
+  assert.match(html, /<p class="result-cta"><a id="result-rakuten-link" class="btn btn--green"/);
+  const css = readFileSync("public/assets/css/style.css", "utf8");
+  assert.match(css, /\.result-cta \{ margin-top: 16px; \}/);
+  assert.match(css, /@media \(max-width: 640px\) \{ \.result-cta \{ margin-top: 22px; \} \}/);
+});
+
+test("範囲注記: 意味単位の3スパンに分かれ、文言は変わっていない", () => {
+  const html = readFileSync("public/gacha/index.html", "utf8");
+  const expected = '<p class="scope-note">'
+    + '<span class="scope-note__line">※ 自治体そのものは選べません。</span>'
+    + '<span class="scope-note__line">「どこに決まるか」までがガチャです。</span>'
+    + '<span class="scope-note__line">気に入らなければ何度でも回せます。</span></p>';
+  assert.ok(html.includes(expected), "3行構成になっていない");
+  // 文言(結合後のテキスト)は従来どおり
+  const text = expected.replace(/<[^>]+>/g, "");
+  assert.equal(text, "※ 自治体そのものは選べません。「どこに決まるか」までがガチャです。気に入らなければ何度でも回せます。");
+  const css = readFileSync("public/assets/css/style.css", "utf8");
+  assert.match(css, /\.scope-note__line \{ display: block; \}/);
+});
+
+test("ホーム: 検索導線は「〜方は」/「返礼品キーワード検索へ。」の2スパンで、狭幅のみ2行にする", () => {
+  const html = readFileSync("public/index.html", "utf8");
+  assert.ok(html.includes('<span class="search-cta__line">🔍 欲しい返礼品が決まっている方は</span>'), "1行目のスパンがない");
+  assert.ok(html.includes('<span class="search-cta__line"><a href="/search/">返礼品キーワード検索</a>へ。</span>'), "2行目(リンク+へ。)のスパンがない");
+  const css = readFileSync("public/assets/css/style.css", "utf8");
+  assert.match(css, /@media \(max-width: 640px\) \{ \.search-cta__line \{ display: block; \} \}/);
+});

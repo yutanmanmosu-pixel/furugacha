@@ -14,10 +14,10 @@
 <meta property="og:image" content="https://furugacha.jp/assets/img/og.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#2E7D46">
-<meta name="furugacha-build" content="1ad02c4668">
+<meta name="furugacha-build" content="90c7383010">
 <meta name="google-adsense-account" content="ca-pub-6256751733136266">
-<link rel="icon" href="/assets/img/favicon.svg?v=1ad02c4668" type="image/svg+xml">
-<link rel="stylesheet" href="/assets/css/style.css?v=1ad02c4668">
+<link rel="icon" href="/assets/img/favicon.svg?v=90c7383010" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/css/style.css?v=90c7383010">
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "ホーム", "item": "https://furugacha.jp/"}, {"@type": "ListItem", "position": 2, "name": "控除上限額シミュレーター"}]}</script>
 </head>
 <body>
@@ -40,10 +40,12 @@
       <p class="section-lead">年収と家族構成を入れるだけで、ふるさと納税の控除上限額の<strong>目安</strong>がわかります。</p>
     </div>
 
-    <form id="calc-form" class="card form-card" aria-label="控除上限額の入力">
+    <!-- method="dialog": 送信先の無いJS専用フォーム。JS到着前の誤送信でページが
+         リロードされないようにする(gacha-core.html と同じ理由)。 -->
+    <form id="calc-form" method="dialog" class="card form-card" aria-label="控除上限額の入力">
       <div class="field">
-        <label for="calc-salary">年収(給与収入・額面)</label>
-        <input id="calc-salary" type="text" inputmode="numeric" autocomplete="off" placeholder="例: 500"><span class="unit">万円</span>
+        <label for="calc-salary">年収(給与収入・額面)<span class="hint">万円単位<span class="nobr">(年収500万円なら「500」)</span></span></label>
+        <div class="input-unit"><input id="calc-salary" type="text" inputmode="numeric" autocomplete="off" placeholder="例: 500"><span class="unit">万円</span></div>
       </div>
       <div class="field field--inline">
         <div>
@@ -64,9 +66,9 @@
       </div>
       <details id="calc-detail" class="calc-detail">
         <summary>くわしく入力する(任意)</summary>
-        <div class="field"><label for="calc-social">社会保険料の年額(実額)<span class="hint">未入力なら年収の15%で概算</span></label><input id="calc-social" type="text" inputmode="numeric" placeholder="例: 75"><span class="unit">万円</span></div>
-        <div class="field"><label for="calc-ideco">iDeCo等の掛金(年額)</label><input id="calc-ideco" type="text" inputmode="numeric" placeholder="例: 24"><span class="unit">万円</span></div>
-        <div class="field"><label for="calc-other">その他の所得控除(医療費控除・生命保険料控除など)</label><input id="calc-other" type="text" inputmode="numeric" placeholder="例: 10"><span class="unit">万円</span></div>
+        <div class="field"><label for="calc-social">社会保険料の年額(実額)<span class="hint"><span class="nobr">万円単位</span>・未入力なら年収の15%で概算</span></label><div class="input-unit"><input id="calc-social" type="text" inputmode="numeric" placeholder="例: 75"><span class="unit">万円</span></div></div>
+        <div class="field"><label for="calc-ideco">iDeCo等の掛金(年額)<span class="hint">万円単位</span></label><div class="input-unit"><input id="calc-ideco" type="text" inputmode="numeric" placeholder="例: 24"><span class="unit">万円</span></div></div>
+        <div class="field"><label for="calc-other">その他の所得控除(医療費控除・生命保険料控除など)<span class="hint">万円単位</span></label><div class="input-unit"><input id="calc-other" type="text" inputmode="numeric" placeholder="例: 10"><span class="unit">万円</span></div></div>
       </details>
       <p id="calc-error" class="error" hidden role="alert"></p>
       <div class="scope-run"><button type="submit" class="btn btn--primary btn--xl">上限額の目安を計算する</button></div>
@@ -140,6 +142,6 @@
     </div>
   </div>
 </footer>
-<script type="module" src="/assets/js/v/1ad02c4668/main.js"></script><script type="module" src="/assets/js/v/1ad02c4668/pages/calculator.js"></script>
+<script type="module" src="/assets/js/v/90c7383010/main.js"></script><script type="module" src="/assets/js/v/90c7383010/pages/calculator.js"></script>
 </body>
 </html>

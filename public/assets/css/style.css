@@ -26,12 +26,19 @@
   --radius: 18px;
   --radius-lg: 26px;
   --maxw: 1080px;
+  /* sticky ヘッダーの高さ。main.js が実測値で上書きする(未実行でも安全な既定値) */
+  --header-h: 88px;
   --font: "Hiragino Maru Gothic ProN", "Hiragino Kaku Gothic ProN", "BIZ UDPGothic", "Noto Sans JP", "Yu Gothic", "Meiryo", system-ui, sans-serif;
 }
 
 /* ---------- base ---------- */
 *, *::before, *::after { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
+html {
+  scroll-behavior: smooth;
+  /* 結果への自動スクロール・ページ内リンクの着地点が sticky ヘッダーの下に潜らないようにする。
+     scrollIntoView / :target / アンカー遷移のすべてに効く(要素ごとの補正は不要)。 */
+  scroll-padding-top: calc(var(--header-h) + 14px);
+}
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
@@ -97,10 +104,14 @@ ul, ol { padding-left: 1.4em; margin: 0 0 1em; }
 .brand__name { font-size: 1.3rem; font-weight: 800; letter-spacing: .02em; line-height: 1.2; }
 .brand__tag { display: block; font-size: .66rem; color: var(--ink-soft); font-weight: 600; }
 .site-nav { margin-left: auto; }
-.site-nav ul { display: flex; gap: 4px; list-style: none; margin: 0; padding: 0; align-items: center; }
+.site-nav ul { display: flex; flex-wrap: nowrap; gap: 2px; list-style: none; margin: 0; padding: 0; align-items: center; }
+/* 日本語は文字単位で折り返せてしまうため、flexの縮小に任せると「自治体ガ/チャ」のように
+   単語途中で改行される。項目は縮めず(flex:none)・改行させず(nowrap)、
+   幅が足りない場合はメディアクエリでモバイルメニューへ切り替える。 */
+.site-nav li { flex: none; }
 .site-nav a {
-  display: block; padding: .5em .8em; border-radius: 999px;
-  text-decoration: none; font-weight: 700; font-size: .92rem; color: var(--ink);
+  display: block; padding: .5em .66em; border-radius: 999px; white-space: nowrap;
+  text-decoration: none; font-weight: 700; font-size: .88rem; color: var(--ink);
 }
 .site-nav a:hover { background: var(--green-soft); color: var(--green-deep); }
 .site-nav a[aria-current="page"] { color: var(--green-deep); background: var(--green-soft); }
@@ -110,7 +121,9 @@ ul, ol { padding-left: 1.4em; margin: 0 0 1em; }
   display: none; margin-left: auto; background: none; border: 2px solid var(--line);
   border-radius: 12px; padding: 8px 10px; font-size: 1.1rem; cursor: pointer; color: var(--ink);
 }
-@media (max-width: 860px) {
+/* PCナビは「1行に収まる幅」でのみ表示する(--maxw=1080px 以上ではヘッダー内側の幅が一定)。
+   それ未満はロゴ・SEボタンと押し合って折り返すため、モバイルメニューへ切り替える。 */
+@media (max-width: 1079px) {
   .nav-toggle { display: block; }
   .site-nav {
     display: none; position: absolute; left: 0; right: 0; top: 100%;
@@ -236,11 +249,17 @@ ul, ol { padding-left: 1.4em; margin: 0 0 1em; }
 }
 .scope-selects select { min-width: 220px; }
 .scope-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; padding: 0; list-style: none; }
+.scope-chips[hidden] { display: none; }   /* 「都道府県から」選択中は地方ボタンを出さない */
 .scope-chips button {
   font-family: inherit; font-size: .85rem; font-weight: 700; cursor: pointer;
   background: #fff; border: 1.5px solid var(--line); border-radius: 999px; padding: .35em 1em; color: var(--ink);
 }
 .scope-chips button:hover { border-color: var(--green); color: var(--green-deep); }
+/* 準備中(データ取得前・取得失敗)と演出中は範囲UIも操作できない。
+   ボタンの .btn[disabled] と同じ考え方で、見た目でも「いま押せない」ことを示す。 */
+.scope-chips button:disabled { opacity: .5; cursor: not-allowed; }
+.scope-chips button:disabled:hover { border-color: var(--line); color: var(--ink); }
+.scope-tabs label:has(input:disabled) { opacity: .6; cursor: not-allowed; }
 .scope-chips button.is-active { background: var(--green); border-color: var(--green); color: #fff; }
 .scope-bottom { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center; margin-top: 12px; }
 .scope-map-mini { width: 168px; justify-self: end; }
@@ -250,10 +269,33 @@ ul, ol { padding-left: 1.4em; margin: 0 0 1em; }
 }
 #scope-count { font-weight: 700; color: var(--green-deep); margin: 0; }
 .scope-note { font-size: .8rem; color: var(--ink-soft); margin-top: 6px; }
+/* データ準備中・読み込み失敗の案内(準備完了で消える。gacha-app.js が hidden を切り替える) */
+.scope-loading { font-size: .82rem; color: var(--ink-soft); margin: 6px 0 0; }
+.scope-loading[hidden], .scope-error[hidden] { display: none; }
+.scope-error {
+  margin-top: 8px; padding: 10px 12px; border-radius: 12px;
+  background: #FDECEA; border: 1.5px solid #E5B4AE;
+}
+.scope-error__msg { margin: 0 0 8px; font-size: .85rem; font-weight: 700; color: #8C2318; }
+.scope-note__line { display: block; }     /* 意味の切れ目で3行に分ける */
 .scope-run { margin-top: 14px; text-align: center; }
-.tilemap { width: 100%; }
-.tilemap__cell { fill: #E7EEDD; stroke: #fff; stroke-width: 1.5; }
-.tilemap__cell--active { fill: var(--orange); }
+/* 日本地図(緯度経度ベースの簡易シルエット。地方ごとに淡く色分けし、対象地方・対象県を強調) */
+.jmap { width: 100%; display: block; }
+.jmap__coast circle { fill: #C6D2C0; }   /* 海岸線(地方色の一回り外側) */
+.jmap__inset { fill: none; stroke: #DBD2BB; stroke-width: 1.2; stroke-dasharray: 5 3; }
+.jmap__pref { fill: #E3EADB; }
+.jmap__region--hokkaido .jmap__pref { fill: #D3E1E9; }
+.jmap__region--tohoku   .jmap__pref { fill: #DCE9D3; }
+.jmap__region--kanto    .jmap__pref { fill: #EFE2C4; }
+.jmap__region--chubu    .jmap__pref { fill: #D6E4DC; }
+.jmap__region--kinki    .jmap__pref { fill: #E9DDC8; }
+.jmap__region--chugoku  .jmap__pref { fill: #DEEAD2; }
+.jmap__region--shikoku  .jmap__pref { fill: #E5E1C8; }
+.jmap__region--kyushu   .jmap__pref { fill: #D4E2E8; }
+.jmap__region--okinawa  .jmap__pref { fill: #E0DAC5; }
+/* 当選(対象)地方は暖色で面ごと持ち上げ、対象の県はさらに濃いオレンジで最前面に示す */
+.jmap__region.is-active .jmap__pref { fill: #F6D2A8; }
+.jmap__top .jmap__pref { fill: var(--orange); }
 
 /* ---------- gacha stage ---------- */
 .gacha-stage { text-align: center; padding: 28px 0 8px; }
@@ -301,6 +343,9 @@ ul, ol { padding-left: 1.4em; margin: 0 0 1em; }
   border-radius: 999px; padding: .3em 1em;
 }
 .result-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: .6em; align-items: center; }
+/* 緑の大CTAは上のボタン群(お気に入り/共有)と視覚的にぶつからないよう、少し下げる */
+.result-cta { margin-top: 16px; }
+@media (max-width: 640px) { .result-cta { margin-top: 22px; } }
 .result-positive { font-size: .8rem; color: var(--ink-soft); margin-top: 1em; }
 
 /* ---------- products ---------- */
@@ -405,7 +450,10 @@ ul, ol { padding-left: 1.4em; margin: 0 0 1em; }
 .article th, .article td { border: 1px solid var(--line); padding: .5em .7em; text-align: left; }
 .article th { background: var(--cream-deep); }
 .article-cta {
-  background: var(--green-soft); border-radius: var(--radius); padding: 18px 20px; margin-top: 1.6em;
+  background: var(--green-soft); border-radius: var(--radius); padding: 18px 20px;
+  /* 記事末尾ではなく本文中(見出しの直前)に置くため、下側の余白も明示する。
+     h2 は margin-top:0 のため、これがないと見出しがCTAに接してしまう。 */
+  margin: 1.6em 0 1.8em;
 }
 .article-cta p { margin-bottom: .6em; }
 .breadcrumb { font-size: .8rem; margin: 14px 0 0; }
@@ -440,6 +488,11 @@ ul, ol { padding-left: 1.4em; margin: 0 0 1em; }
 .field--inline { display: flex; gap: 14px; flex-wrap: wrap; }
 .field--inline > div { flex: 1; min-width: 140px; }
 .unit { margin-left: .4em; font-weight: 700; }
+/* 入力欄と単位を1行に固定する。input が width:100% のため、狭幅では「万円」が
+   次の行へ落ち、何の単位で入れるのか分からなくなっていた(360〜430pxで顕著)。 */
+.input-unit { display: flex; align-items: center; gap: .4em; max-width: 320px; }
+.input-unit input { flex: 1 1 auto; width: auto; min-width: 0; max-width: none; }
+.input-unit .unit { flex: none; margin-left: 0; white-space: nowrap; }
 details.calc-detail { border: 2px dashed var(--line); border-radius: var(--radius); padding: 8px 18px; margin: 18px 0; }
 details.calc-detail summary { cursor: pointer; font-weight: 800; color: var(--green-deep); padding: 8px 0; }
 
@@ -721,6 +774,9 @@ p, li, dd, .section-lead, .note, .faq .a { text-wrap: pretty; }
    ・予算カード注記は狭幅で右下の装飾(.teaser__art = ガチャ玉)を避ける右余白 + 意味単位の改行を維持。
    ・控除カード注記は「詳細は税理士等にご相談ください。」を1つの意味単位で表示するため、
      右余白による分断をやめ、狭幅では装飾(電卓)を注記の下へ逃がす(カード下余白を拡張)。 */
+/* ホームの検索導線: 狭幅では「〜方は」/「返礼品キーワード検索へ。」の2行にする */
+@media (max-width: 640px) { .search-cta__line { display: block; } }
+
 .teaser__note--spaced { margin-top: 14px; }
 @media (min-width: 861px) {
   /* 2カラム時のみ: 左カードのCTA(.btn--primary)は白3px枠のぶん右カードより6px背が高い。
